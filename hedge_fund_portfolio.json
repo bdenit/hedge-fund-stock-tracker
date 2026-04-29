@@ -1,0 +1,30 @@
+{
+  "open_positions": [
+    {
+      "ticker": "BHP.AX",
+      "shares": 12712.0,
+      "avg_cost": 36.1858,
+      "name": "BHP GROUP FPO [BHP]"
+    },
+    {
+      "ticker": "LED.AX",
+      "shares": 1113499.0,
+      "avg_cost": 0.7152,
+      "name": "LDRCPFUND STAPLED [LED]"
+    },
+    {
+      "ticker": "BFG.AX",
+      "shares": 383863.0,
+      "avg_cost": 1.3504,
+      "name": "BELL FN GP FPO [BFG]"
+    },
+    {
+      "ticker": "AFI.AX",
+      "shares": 45831.0,
+      "avg_cost": 7.18305,
+      "name": "AUS.FOUND. FPO [AFI]"
+    }
+  ],
+  "closed_trades": [],
+  "dividends_received": []
+}
