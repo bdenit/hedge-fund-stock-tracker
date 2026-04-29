@@ -1,0 +1,242 @@
+{
+  "open_positions": [
+    {
+      "ticker": "BHP.AX",
+      "shares": 12712.0,
+      "avg_cost": 36.1858,
+      "name": "BHP GROUP FPO [BHP]"
+    },
+    {
+      "ticker": "LED.AX",
+      "shares": 1113499.0,
+      "avg_cost": 0.7152,
+      "name": "LDRCPFUND STAPLED [LED]"
+    },
+    {
+      "ticker": "BFG.AX",
+      "shares": 383863.0,
+      "avg_cost": 1.3504,
+      "name": "BELL FN GP FPO [BFG]"
+    },
+    {
+      "ticker": "AFI.AX",
+      "shares": 45831.0,
+      "avg_cost": 7.18305,
+      "name": "AUS.FOUND. FPO [AFI]"
+    },
+    {
+      "ticker": "ANZ.AX",
+      "shares": 3904.0,
+      "avg_cost": 29.7114,
+      "name": "ANZ GROUP FPO [ANZ]"
+    },
+    {
+      "ticker": "CBA.AX",
+      "shares": 679.0,
+      "avg_cost": 80.9898,
+      "name": "CWLTH BANK FPO [CBA]"
+    },
+    {
+      "ticker": "COL.AX",
+      "shares": 1500.0,
+      "avg_cost": 12.3478,
+      "name": "COLESGROUP FPO [COL]"
+    },
+    {
+      "ticker": "THL.AX",
+      "shares": 2273.0,
+      "avg_cost": 4.3788,
+      "name": "TOURSM HLD FPO NZX [THL]"
+    },
+    {
+      "ticker": "CSL.AX",
+      "shares": 456.0,
+      "avg_cost": 87.9454,
+      "name": "CSL FPO [CSL]"
+    },
+    {
+      "ticker": "FGG.AX",
+      "shares": 160408.0,
+      "avg_cost": 1.31615,
+      "name": "FUTURE GLB FPO [FGG]"
+    },
+    {
+      "ticker": "IVV.AX",
+      "shares": 1575.0,
+      "avg_cost": 16.3461,
+      "name": "ISCS&P500 ETF UNITS [IVV]"
+    },
+    {
+      "ticker": "MFF.AX",
+      "shares": 35828.0,
+      "avg_cost": 3.4495,
+      "name": "MFFCAPITAL FPO [MFF]"
+    },
+    {
+      "ticker": "MPL.AX",
+      "shares": 23814.0,
+      "avg_cost": 2.9841,
+      "name": "MEDIBANK FPO [MPL]"
+    },
+    {
+      "ticker": "NAB.AX",
+      "shares": 2384.0,
+      "avg_cost": 29.5119,
+      "name": "NAT. BANK FPO [NAB]"
+    },
+    {
+      "ticker": "PPT.AX",
+      "shares": 435.0,
+      "avg_cost": 62.705,
+      "name": "PERPETUAL FPO [PPT]"
+    },
+    {
+      "ticker": "QUB.AX",
+      "shares": 8283.0,
+      "avg_cost": 2.2731,
+      "name": "QUBE FPO [QUB]"
+    },
+    {
+      "ticker": "SHL.AX",
+      "shares": 901.0,
+      "avg_cost": 22.8824,
+      "name": "SONIC HLTH FPO [SHL]"
+    },
+    {
+      "ticker": "STO.AX",
+      "shares": 2123.0,
+      "avg_cost": 7.6166,
+      "name": "SANTOS FPO [STO]"
+    },
+    {
+      "ticker": "WDS.AX",
+      "shares": 1077.0,
+      "avg_cost": 24.1034,
+      "name": "WOODSIDE FPO [WDS]"
+    },
+    {
+      "ticker": "WES.AX",
+      "shares": 1618.0,
+      "avg_cost": 31.0543,
+      "name": "WESFARMER FPO [WES]"
+    },
+    {
+      "ticker": "RF1.AX",
+      "shares": 69805.0,
+      "avg_cost": 3.2386,
+      "name": "REGAL INV ORD UNITS [RF1]"
+    },
+    {
+      "ticker": "ASB.AX",
+      "shares": 4000.0,
+      "avg_cost": 1.815,
+      "name": "AUSTAL LTD FPO [ASB]"
+    },
+    {
+      "ticker": "MAQ.AX",
+      "shares": 1744.0,
+      "avg_cost": 85.9995,
+      "name": "MAQ TECH FPO [MAQ]"
+    },
+    {
+      "ticker": "BGD.AX",
+      "shares": 104477.0,
+      "avg_cost": 0.67,
+      "name": "BARTONGOLD FPO [BGD]"
+    },
+    {
+      "ticker": "ADN.AX",
+      "shares": 1530410.0,
+      "avg_cost": 0.06,
+      "name": "ANDROMEDA FPO [ADN]"
+    },
+    {
+      "ticker": "APX.AX",
+      "shares": 27851.0,
+      "avg_cost": 1.8739,
+      "name": "APPEN FPO [APX]"
+    },
+    {
+      "ticker": "CR3.AX",
+      "shares": 26786.0,
+      "avg_cost": 0.56,
+      "name": "COREENERGY FPO [CR3]"
+    },
+    {
+      "ticker": "LMG.AX",
+      "shares": 750697.0,
+      "avg_cost": 0.056,
+      "name": "LATROBE FPO [LMG]"
+    },
+    {
+      "ticker": "ITM.AX",
+      "shares": 6146.0,
+      "avg_cost": 0.0,
+      "name": "ITECHMIN FPO [ITM]"
+    },
+    {
+      "ticker": "IBX.AX",
+      "shares": 1745.0,
+      "avg_cost": 0.205,
+      "name": "IMAGIONBIO FPO [IBX]"
+    },
+    {
+      "ticker": "ENX.AX",
+      "shares": 452299.0,
+      "avg_cost": 0.3352,
+      "name": "ENEGEX FPO [ENX]"
+    },
+    {
+      "ticker": "ASN.AX",
+      "shares": 467379.0,
+      "avg_cost": 0.0948,
+      "name": "ANSON RES FPO [ASN]"
+    },
+    {
+      "ticker": "AXE.AX",
+      "shares": 133068.0,
+      "avg_cost": 0.6388,
+      "name": "ARCHER MAT FPO [AXE]"
+    },
+    {
+      "ticker": "PKO.AX",
+      "shares": 1922248.0,
+      "avg_cost": 0.0362,
+      "name": "PEAKO LTD FPO [PKO]"
+    },
+    {
+      "ticker": "RDN.AX",
+      "shares": 4406232.0,
+      "avg_cost": 0.0251,
+      "name": "RAIDEN RES FPO [RDN]"
+    },
+    {
+      "ticker": "ARR.AX",
+      "shares": 40797.0,
+      "avg_cost": 0.3,
+      "name": "ARAREEARTH FPO NZ [ARR]"
+    },
+    {
+      "ticker": "AR3.AX",
+      "shares": 630251.0,
+      "avg_cost": 0.1861,
+      "name": "AUSTRARE FPO [AR3]"
+    },
+    {
+      "ticker": "OLY.AX",
+      "shares": 1108.0,
+      "avg_cost": 0.0,
+      "name": "OLYMPIOMET FPO [OLY]"
+    }
+  ],
+  "closed_trades": [
+    {
+      "date": "2026-04-29",
+      "ticker": "CR3",
+      "shares_sold": 26786.0,
+      "sell_price": 0.56,
+      "realized_pnl": 0.0
+    }
+  ],
+  "dividends_received": []
+}
