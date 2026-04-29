@@ -6,8 +6,9 @@ import os
 from datetime import datetime
 
 st.set_page_config(page_title="Hedge Fund Stock Tracker", layout="wide")
+
 st.title("Hedge Fund Stock Tracker v9.3")
-st.markdown("**Professional Portfolio Tool with SelfWealth Import**")
+st.markdown("**Professional Portfolio Tool with SelfWealth Import & Dividend Analytics**")
 
 PORTFOLIO_FILE = "hedge_fund_portfolio.json"
 
@@ -27,29 +28,25 @@ class PortfolioManager:
         return []
 
     def save_all(self):
+        data = {"open_positions": self.portfolio}
         with open(PORTFOLIO_FILE, 'w') as f:
-            json.dump({"open_positions": self.portfolio}, f, indent=2)
+            json.dump(data, f, indent=2)
 
-    # Improved price fetching with multiple fallbacks
     def get_current_price(self, ticker):
         try:
             stock = yf.Ticker(ticker)
             info = stock.info
-
-            # Try multiple price fields
+            # Multiple fallback price fields
             for key in ['currentPrice', 'regularMarketPrice', 'previousClose', 'lastPrice']:
                 price = info.get(key)
                 if price is not None:
                     return float(price)
-
-            # Fallback: get history for latest close
+            # Final fallback using history
             hist = stock.history(period="5d")
             if not hist.empty:
                 return float(hist['Close'].iloc[-1])
-
             return None
-        except Exception as e:
-            st.warning(f"Could not fetch price for {ticker}: {e}")
+        except:
             return None
 
     def calculate_pnl(self, position):
@@ -71,66 +68,96 @@ class PortfolioManager:
             "unrealized_pnl": round(unrealized, 2)
         }
 
+    def get_dividend_metrics(self, ticker, avg_cost):
+        try:
+            stock = yf.Ticker(ticker)
+            info = stock.info
+            forward = info.get('dividendRate')
+            trailing = info.get('trailingAnnualDividendRate')
+            curr_yield = info.get('dividendYield')
+            if curr_yield and curr_yield > 1:
+                curr_yield *= 100
+            yoc = (trailing / avg_cost * 100) if avg_cost and trailing else None
+
+            return {
+                "forward_annual": round(forward, 4) if forward else None,
+                "current_yield": round(curr_yield, 2) if curr_yield else None,
+                "yield_on_cost": round(yoc, 2) if yoc else None,
+            }
+        except:
+            return {}
+
+    # ====================== SelfWealth CSV Import ======================
     def import_selfwealth_csv(self, uploaded_file):
-        df = pd.read_csv(uploaded_file)
+        try:
+            df = pd.read_csv(uploaded_file)
 
-        ticker_col = next((col for col in df.columns if str(col).lower() in ['ticker', 'code', 'symbol']), None)
-        shares_col = next((col for col in df.columns if any(w in str(col).lower()
-                                                            for w in ['units', 'quantity', 'shares', 'held'])), None)
+            ticker_col = next((col for col in df.columns if str(col).lower() in ['ticker', 'code', 'symbol']), None)
+            shares_col = next((col for col in df.columns if any(w in str(col).lower()
+                                                                for w in ['units', 'quantity', 'shares', 'held'])),
+                              None)
+            name_col = next((col for col in df.columns if any(w in str(col).lower()
+                                                              for w in ['holding', 'name', 'stock'])), None)
 
-        if not ticker_col or not shares_col:
-            st.error("Could not detect Ticker and Quantity columns in CSV.")
-            st.dataframe(df.head())
-            return False
+            if not ticker_col or not shares_col:
+                st.error("Could not detect Ticker and Quantity columns.")
+                st.dataframe(df.head())
+                return False
 
-        imported = 0
-        for _, row in df.iterrows():
-            ticker_raw = str(row[ticker_col]).strip().upper()
-            if not ticker_raw or ticker_raw.lower() == 'nan':
-                continue
-
-            ticker = ticker_raw + '.AX' if '.' not in ticker_raw else ticker_raw
-
-            try:
-                shares = float(row[shares_col])
-                if shares <= 0:
+            imported = 0
+            for _, row in df.iterrows():
+                ticker_raw = str(row[ticker_col]).strip().upper()
+                if not ticker_raw or ticker_raw.lower() == 'nan':
                     continue
-            except:
-                continue
 
-            existing = next((p for p in self.portfolio if p["ticker"] == ticker), None)
-            if existing:
-                existing["shares"] = shares
-            else:
-                current_price = self.get_current_price(ticker) or 0.0
-                self.portfolio.append({
-                    "ticker": ticker,
-                    "shares": shares,
-                    "avg_cost": current_price,
-                    "name": ticker
-                })
-                imported += 1
+                ticker = ticker_raw + '.AX' if '.' not in ticker_raw else ticker_raw
 
-        self.save_all()
-        st.success(f"Imported/Updated {imported} positions successfully!")
-        return True
+                try:
+                    shares = float(row[shares_col])
+                    if shares <= 0:
+                        continue
+                except:
+                    continue
+
+                existing = next((p for p in self.portfolio if p["ticker"] == ticker), None)
+                if existing:
+                    existing["shares"] = shares
+                else:
+                    current_price = self.get_current_price(ticker) or 0.0
+                    name = str(row.get(name_col, ticker)) if name_col else ticker
+                    self.portfolio.append({
+                        "ticker": ticker,
+                        "shares": shares,
+                        "avg_cost": current_price,
+                        "name": name
+                    })
+                    imported += 1
+
+            self.save_all()
+            st.success(f"✅ Successfully imported/updated {imported} positions.")
+            return True
+
+        except Exception as e:
+            st.error(f"Error processing CSV: {e}")
+            return False
 
 
 # ====================== Streamlit UI ======================
 pm = PortfolioManager()
 
-tab1, tab2, tab3 = st.tabs(["📊 Portfolio", "📤 Import CSV", "✏️ Edit Positions"])
+tab1, tab2, tab3, tab4 = st.tabs(["📊 Portfolio", "📤 Import CSV", "✏️ Edit Positions", "📈 Dividends"])
 
 with tab1:
     st.header("Portfolio Overview")
 
-    if st.button("Refresh All Prices"):
-        st.rerun()
+    col1, col2 = st.columns([3, 1])
+    with col2:
+        if st.button("Refresh Prices"):
+            st.rerun()
 
     if pm.portfolio:
         data = []
         total_mv = 0.0
-
         for pos in pm.portfolio:
             pnl = pm.calculate_pnl(pos)
             mv = pnl["market_value"] if isinstance(pnl["market_value"], (int, float)) else 0
@@ -149,42 +176,66 @@ with tab1:
         st.dataframe(pd.DataFrame(data), use_container_width=True, hide_index=True)
         st.metric("Total Portfolio Value", f"${total_mv:,.2f}")
     else:
-        st.info("Portfolio is empty. Import a CSV from SelfWealth to begin.")
+        st.info("Portfolio is empty. Import a CSV from SelfWealth to get started.")
 
 with tab2:
     st.header("Import from SelfWealth")
-    uploaded = st.file_uploader("Upload SelfWealth Portfolio Statement CSV", type="csv")
-    if uploaded and st.button("Process CSV"):
-        pm.import_selfwealth_csv(uploaded)
+    st.info("Upload your **Portfolio Statement CSV** from SelfWealth.")
+    uploaded_file = st.file_uploader("Choose CSV file", type=["csv"])
+    if uploaded_file and st.button("Process SelfWealth CSV"):
+        pm.import_selfwealth_csv(uploaded_file)
 
 with tab3:
     st.header("Edit Positions")
     if pm.portfolio:
-        df = pd.DataFrame([{
+        edit_data = [{
             "ticker": p["ticker"],
             "name": p.get("name", ""),
             "shares": p["shares"],
             "avg_cost": p["avg_cost"]
-        } for p in pm.portfolio])
+        } for p in pm.portfolio]
 
         edited_df = st.data_editor(
-            df,
+            pd.DataFrame(edit_data),
             use_container_width=True,
             hide_index=True,
             column_config={
                 "ticker": st.column_config.TextColumn("Ticker", disabled=True),
                 "name": st.column_config.TextColumn("Name"),
-                "shares": st.column_config.NumberColumn("Shares", min_value=0.0, format="%.4f"),
+                "shares": st.column_config.NumberColumn("Shares", min_value=0.0001, format="%.4f"),
                 "avg_cost": st.column_config.NumberColumn("Avg Cost", min_value=0.0, format="%.4f")
             }
         )
 
-        if st.button("Save Changes"):
+        if st.button("💾 Save Changes"):
             pm.portfolio = edited_df.to_dict('records')
             pm.save_all()
-            st.success("Changes saved!")
+            st.success("Changes saved successfully!")
             st.rerun()
     else:
         st.info("No positions to edit.")
 
-st.sidebar.info("Data is shared with console_tracker.py")
+with tab4:
+    st.header("Dividends & 12-Month Forecast")
+    if st.button("Refresh Dividend Data"):
+        st.rerun()
+
+    if pm.portfolio:
+        forecast_data = []
+        total_forecast = 0.0
+        for pos in pm.portfolio:
+            m = pm.get_dividend_metrics(pos["ticker"], pos["avg_cost"])
+            annual = m.get("forward_annual") or 0
+            income = pos["shares"] * annual
+            total_forecast += income
+            forecast_data.append({
+                "Ticker": pos["ticker"],
+                "Shares": round(pos["shares"], 4),
+                "Fwd Annual Div": round(annual, 4),
+                "Est 12M Income": round(income, 2),
+                "YoC %": m.get("yield_on_cost")
+            })
+        st.dataframe(pd.DataFrame(forecast_data), use_container_width=True, hide_index=True)
+        st.metric("Total Expected Dividend Income (Next 12 Months)", f"${total_forecast:,.2f}")
+
+st.sidebar.success("Data is synced with console_tracker.py")
