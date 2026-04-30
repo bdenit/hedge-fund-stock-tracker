@@ -283,17 +283,20 @@ with tab4:
 
 with tab5:
     st.header("📰 News & Sentiment Analysis")
-    if pm.portfolio:
-        for pos in pm.portfolio[:10]:
-            with st.expander(f"**{pos['ticker']}** - Latest News"):
-                news_items = pm.get_news(pos["ticker"], limit=5)
-                for item in news_items:
-                    st.markdown(f"**[{item['title']}]({item['link']})**")
-                    st.caption(f"{item['publisher']} • {item['sentiment']} (Score: {item['score']})")
-                    st.divider()
-    else:
-        st.info("Add holdings to see news and sentiment.")
 
+    if pm.portfolio:
+        for pos in pm.portfolio:
+            with st.expander(f"**{pos['ticker']}** - Latest News"):
+                news_items = pm.get_news(pos["ticker"], limit=6)
+                if news_items:
+                    for item in news_items:
+                        st.markdown(f"**[{item['title']}]({item['link']})**")
+                        st.caption(f"{item['publisher']} • {item['sentiment']} (Score: {item['score']})")
+                        st.divider()
+                else:
+                    st.write("No news available at the moment.")
+    else:
+        st.info("Add holdings to see news and sentiment analysis.")
 with tab6:
     st.header("🌍 World Markets & Economic Calendar")
 
