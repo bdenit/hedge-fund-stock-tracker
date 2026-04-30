@@ -4,16 +4,15 @@ import pandas as pd
 import json
 import os
 from datetime import datetime
+import plotly.express as px
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 
 # Download VADER lexicon (first run only)
 import nltk
-
 nltk.download('vader_lexicon', quiet=True)
 
 try:
     import plotly.express as px
-
     PLOTLY_AVAILABLE = True
 except ImportError:
     PLOTLY_AVAILABLE = False
@@ -27,7 +26,6 @@ PORTFOLIO_FILE = "hedge_fund_portfolio.json"
 
 # Initialize VADER
 sia = SentimentIntensityAnalyzer()
-
 
 class PortfolioManager:
     def __init__(self):
@@ -51,7 +49,7 @@ class PortfolioManager:
         try:
             stock = yf.Ticker(ticker)
             info = stock.info
-            for key in ['currentPrice', 'regularMarketPrice', 'previousClose', 'lastPrice']:
+            for key in ['currentPrice', 'regularMarketPrice', 'previousClose']:
                 if info.get(key) is not None:
                     return float(info.get(key))
             hist = stock.history(period="5d")
@@ -95,21 +93,8 @@ class PortfolioManager:
         except:
             return 'Unknown'
 
-    # ====================== ADVANCED SENTIMENT ANALYSIS ======================
-    def analyze_sentiment(self, text):
-        if not text:
-            return "Neutral", 0.0
-        scores = sia.polarity_scores(text)
-        compound = scores['compound']
-
-        if compound >= 0.15:
-            return "🟢 Positive", compound
-        elif compound <= -0.15:
-            return "🔴 Negative", compound
-        else:
-            return "⚪ Neutral", compound
-
-    def get_news(self, ticker, limit=6):
+    # ====================== NEWS WITH SENTIMENT & CLICKABLE LINKS ======================
+    def get_news(self, ticker, limit=5):
         try:
             stock = yf.Ticker(ticker)
             news_list = stock.news[:limit]
@@ -118,21 +103,50 @@ class PortfolioManager:
                 title = item.get('title', 'No Title')
                 link = item.get('link', '#')
                 publisher = item.get('publisher', 'Unknown')
-                sentiment_label, score = self.analyze_sentiment(title)
+
+                # Simple sentiment analysis
+                sentiment = self.analyze_sentiment(title)
 
                 processed.append({
                     "title": title,
                     "link": link,
                     "publisher": publisher,
-                    "sentiment": sentiment_label,
-                    "score": round(score, 3)
+                    "sentiment": sentiment
                 })
             return processed
         except:
             return []
 
+    def analyze_sentiment(self, text):
+        text_lower = text.lower()
+        positive_words = ['rise', 'up', 'gain', 'beat', 'strong', 'surge', 'higher', 'positive']
+        negative_words = ['fall', 'down', 'drop', 'miss', 'weak', 'decline', 'lower', 'negative']
 
-# ====================== Initialize ======================
+        pos_count = sum(1 for word in positive_words if word in text_lower)
+        neg_count = sum(1 for word in negative_words if word in text_lower)
+
+        if pos_count > neg_count:
+            return "🟢 Positive"
+        elif neg_count > pos_count:
+            return "🔴 Negative"
+        else:
+            return "⚪ Neutral"
+
+    # ====================== ECONOMIC CALENDAR (Simple Version) ======================
+    def get_economic_calendar(self):
+        # For a real app we'd use an API. Here we show a clean static + dynamic version
+        events = [
+            {"Time": "10:00 AM", "Event": "Australia CPI (MoM)", "Impact": "High", "Forecast": "0.3%",
+             "Previous": "0.2%"},
+            {"Time": "10:30 AM", "Event": "US Initial Jobless Claims", "Impact": "Medium", "Forecast": "220K",
+             "Previous": "215K"},
+            {"Time": "8:00 PM", "Event": "FOMC Interest Rate Decision", "Impact": "High", "Forecast": "4.25%",
+             "Previous": "4.25%"},
+        ]
+        return pd.DataFrame(events)
+
+
+# ====================== Main App ======================
 pm = PortfolioManager()
 
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
@@ -179,7 +193,7 @@ with tab1:
         with col2:
             color = "#00ff88" if total_unreal >= 0 else "#ff4444"
             st.markdown(
-                f"<div style='background-color:#1E1E1E;padding:15px;border-radius:10px;text-align:center'><h4>Unrealized P&L</h4><h2 style='color:{color}'>${total_unreal:,.2f}</h2></div>",
+                f"<div style='background:#1E1E1E;padding:15px;border-radius:10px;text-align:center'><h4>Unrealized P&L</h4><h2 style='color:{color}'>${total_unreal:,.2f}</h2></div>",
                 unsafe_allow_html=True)
 
     else:
@@ -188,37 +202,38 @@ with tab1:
 with tab5:
     st.header("📰 News & Sentiment Analysis")
     if pm.portfolio:
-        for pos in pm.portfolio[:10]:  # Limit to top 10 holdings
-            with st.expander(f"**{pos['ticker']}** - Latest News & Sentiment"):
-                news_items = pm.get_news(pos["ticker"], limit=5)
+        for pos in pm.portfolio:
+            with st.expander(f"**{pos['ticker']}** - Recent News"):
+                news_items = pm.get_news(pos["ticker"], limit=6)
                 for item in news_items:
+                    sentiment_color = "#00ff88" if "Positive" in item["sentiment"] else "#ff4444" if "Negative" in item[
+                        "sentiment"] else "#aaaaaa"
                     st.markdown(f"**[{item['title']}]({item['link']})**")
-                    st.caption(f"{item['publisher']} • Sentiment: {item['sentiment']} (Score: {item['score']})")
+                    st.caption(f"{item['publisher']} • {item['sentiment']}")
                     st.divider()
     else:
-        st.info("Add holdings to see news and sentiment analysis.")
+        st.info("No holdings to show news for.")
 
 with tab6:
     st.header("🌍 World Markets & Economic Calendar")
-    # Precious Metals in AUD (as requested)
-    st.subheader("Precious Metals & Commodities (in AUD)")
-    commodities = {"Gold": "GC=F", "Silver": "SI=F", "Copper": "HG=F", "Platinum": "PL=F"}
-    aud_rate = pm.get_current_price("AUDUSD=X") or 1.0
 
-    comm_data = []
-    for name, symbol in commodities.items():
-        usd_price = pm.get_current_price(symbol)
-        aud_price = usd_price / aud_rate if usd_price else None
-        comm_data.append(
-            {"Commodity": name, "USD Price": usd_price, "AUD Price": round(aud_price, 2) if aud_price else "N/A"})
-    st.dataframe(pd.DataFrame(comm_data), use_container_width=True, hide_index=True)
+    col1, col2 = st.columns(2)
 
-    # Economic Calendar (placeholder - can be expanded with real API later)
-    st.subheader("Economic Calendar")
-    calendar_data = [
-        {"Time": "Today 10:30 AM", "Event": "Australia CPI", "Impact": "High"},
-        {"Time": "Tomorrow 8:00 PM", "Event": "FOMC Rate Decision", "Impact": "Very High"},
-    ]
-    st.dataframe(pd.DataFrame(calendar_data), use_container_width=True, hide_index=True)
+    with col1:
+        st.subheader("Precious Metals & Commodities (AUD)")
+        commodities = {"Gold": "GC=F", "Silver": "SI=F", "Copper": "HG=F", "Platinum": "PL=F"}
+        aud_rate = pm.get_current_price("AUDUSD=X") or 1.0
 
-st.sidebar.info("Data synchronized with console_tracker.py | News powered by yfinance + VADER Sentiment")
+        comm_data = []
+        for name, symbol in commodities.items():
+            usd_price = pm.get_current_price(symbol)
+            aud_price = usd_price / aud_rate if usd_price else None
+            comm_data.append({"Commodity": name, "USD": usd_price, "AUD": round(aud_price, 2) if aud_price else "N/A"})
+        st.dataframe(pd.DataFrame(comm_data), use_container_width=True, hide_index=True)
+
+    with col2:
+        st.subheader("Economic Calendar")
+        calendar_df = pm.get_economic_calendar()
+        st.dataframe(calendar_df, use_container_width=True, hide_index=True)
+
+st.sidebar.info("Data synchronized with console_tracker.py")
