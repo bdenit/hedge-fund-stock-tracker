@@ -96,49 +96,60 @@ class PortfolioManager:
         except:
             return 'Unknown'
 
-    # ====================== IMPROVED NEWS WITH SENTIMENT ======================
-    def analyze_sentiment(self, text):
-        if not text:
-            return "⚪ Neutral", 0.0
-        scores = sia.polarity_scores(text)
-        compound = scores['compound']
+        # ====================== IMPROVED NEWS EXTRACTION ======================
+        def analyze_sentiment(self, text):
+            if not text:
+                return "⚪ Neutral", 0.0
+            scores = sia.polarity_scores(str(text))
+            compound = scores['compound']
+            if compound >= 0.15:
+                return "🟢 Positive", compound
+            elif compound <= -0.15:
+                return "🔴 Negative", compound
+            else:
+                return "⚪ Neutral", compound
 
-        if compound >= 0.15:
-            return "🟢 Positive", compound
-        elif compound <= -0.15:
-            return "🔴 Negative", compound
-        else:
-            return "⚪ Neutral", compound
+        def get_news(self, ticker, limit=5):
+            try:
+                stock = yf.Ticker(ticker)
+                news_list = stock.news[:limit]
+                processed = []
 
-    def get_news(self, ticker, limit=5):
-        try:
-            stock = yf.Ticker(ticker)
-            news_list = stock.news[:limit]
-            processed = []
+                for item in news_list:
+                    # Extract title and link with multiple fallbacks
+                    title = None
+                    link = "#"
 
-            for item in news_list:
-                # Robust field extraction
-                title = item.get('title') or item.get('content') or "No Title Available"
-                link = item.get('link') or item.get('url') or "#"
-                publisher = item.get('publisher') or "Unknown Source"
+                    # Try different possible keys
+                    if isinstance(item, dict):
+                        title = (item.get('title') or
+                                 item.get('content') or
+                                 item.get('headline') or
+                                 "Market Update")
 
-                # Clean up title if it's too long or empty
-                if len(str(title)) < 5:
-                    title = "Market Update"
+                        link = (item.get('link') or
+                                item.get('url') or
+                                item.get('canonicalUrl') or
+                                "#")
 
-                sentiment_label, score = self.analyze_sentiment(str(title))
+                    # Clean title
+                    title = str(title).strip()
+                    if len(title) < 10 or title.lower() == "none":
+                        title = "Market News Update"
 
-                processed.append({
-                    "title": str(title),
-                    "link": link,
-                    "publisher": publisher,
-                    "sentiment": sentiment_label,
-                    "score": round(score, 3)
-                })
-            return processed
-        except Exception as e:
-            return [{"title": "Unable to fetch news", "link": "#", "publisher": "System", "sentiment": "⚪ Neutral",
-                     "score": 0.0}]
+                    sentiment_label, score = self.analyze_sentiment(title)
+
+                    processed.append({
+                        "title": title,
+                        "link": link,
+                        "publisher": item.get('publisher', 'Unknown') if isinstance(item, dict) else 'Unknown',
+                        "sentiment": sentiment_label,
+                        "score": round(score, 3)
+                    })
+                return processed
+            except Exception:
+                return [{"title": "Unable to load news at this time", "link": "#", "publisher": "System",
+                         "sentiment": "⚪ Neutral", "score": 0.0}]
 
 
 # ====================== Initialize ======================
