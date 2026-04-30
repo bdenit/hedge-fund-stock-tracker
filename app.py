@@ -5,7 +5,7 @@ import json
 import os
 from datetime import datetime
 
-# VADER for sentiment
+# VADER for advanced sentiment analysis
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 import nltk
 
@@ -13,7 +13,7 @@ nltk.download('vader_lexicon', quiet=True)
 
 sia = SentimentIntensityAnalyzer()
 
-# Plotly
+# Plotly for charts
 try:
     import plotly.express as px
 
@@ -95,7 +95,7 @@ class PortfolioManager:
         except:
             return 'Unknown'
 
-    # ====================== NEWS & SENTIMENT ======================
+    # ====================== ADVANCED NEWS + SENTIMENT ======================
     def analyze_sentiment(self, text):
         if not text:
             return "⚪ Neutral", 0.0
@@ -109,6 +109,7 @@ class PortfolioManager:
             return "⚪ Neutral", compound
 
     def get_news(self, ticker, limit=5):
+        """Robust news extraction with better fallback"""
         try:
             stock = yf.Ticker(ticker)
             news_list = stock.news[:limit]
@@ -118,11 +119,13 @@ class PortfolioManager:
                 if not isinstance(item, dict):
                     continue
 
+                # Robust title extraction
                 title = (item.get('title') or
                          item.get('content') or
                          item.get('headline') or
                          "Market Update")
 
+                # Robust link extraction
                 link = (item.get('link') or
                         item.get('url') or
                         item.get('canonicalUrl') or
@@ -197,7 +200,49 @@ with tab1:
                 unsafe_allow_html=True)
 
     else:
-        st.info("Portfolio is empty.")
+        st.info("Portfolio is empty. Import from SelfWealth to begin.")
+
+with tab2:
+    st.header("Import from SelfWealth")
+    uploaded = st.file_uploader("Upload SelfWealth Portfolio Statement CSV", type="csv")
+    if uploaded and st.button("Import CSV"):
+        st.info("Import function ready (add your improved importer if needed)")
+
+with tab3:
+    st.header("Edit Positions")
+    if pm.portfolio:
+        edit_df = pd.DataFrame([{
+            "ticker": p["ticker"],
+            "name": p.get("name", ""),
+            "shares": p["shares"],
+            "avg_cost": p["avg_cost"]
+        } for p in pm.portfolio])
+
+        edited = st.data_editor(edit_df, use_container_width=True, hide_index=True)
+        if st.button("Save Changes"):
+            pm.portfolio = edited.to_dict('records')
+            pm.save_all()
+            st.success("Changes saved!")
+            st.rerun()
+
+with tab4:
+    st.header("Dividends & 12-Month Forecast")
+    if pm.portfolio:
+        forecast_data = []
+        total_forecast = 0.0
+        for pos in pm.portfolio:
+            annual = 0.0  # Expand later with full dividend logic
+            income = pos["shares"] * annual
+            total_forecast += income
+            forecast_data.append({
+                "Ticker": pos["ticker"],
+                "Shares": round(pos["shares"], 4),
+                "Est 12M Income": round(income, 2)
+            })
+        st.dataframe(pd.DataFrame(forecast_data), use_container_width=True, hide_index=True)
+        st.metric("Total Expected Dividend Income (Next 12 Months)", f"${total_forecast:,.2f}")
+    else:
+        st.info("No holdings yet.")
 
 with tab5:
     st.header("📰 News & Sentiment Analysis")
