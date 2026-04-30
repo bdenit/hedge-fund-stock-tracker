@@ -96,61 +96,59 @@ class PortfolioManager:
         except:
             return 'Unknown'
 
-        # ====================== IMPROVED NEWS EXTRACTION ======================
-        def analyze_sentiment(self, text):
-            if not text:
-                return "⚪ Neutral", 0.0
-            scores = sia.polarity_scores(str(text))
-            compound = scores['compound']
-            if compound >= 0.15:
-                return "🟢 Positive", compound
-            elif compound <= -0.15:
-                return "🔴 Negative", compound
-            else:
-                return "⚪ Neutral", compound
+            # ====================== ADVANCED NEWS + SENTIMENT ======================
+            def analyze_sentiment(self, text):
+                if not text:
+                    return "⚪ Neutral", 0.0
+                scores = sia.polarity_scores(str(text))
+                compound = scores['compound']
+                if compound >= 0.15:
+                    return "🟢 Positive", compound
+                elif compound <= -0.15:
+                    return "🔴 Negative", compound
+                else:
+                    return "⚪ Neutral", compound
 
-        def get_news(self, ticker, limit=5):
-            try:
-                stock = yf.Ticker(ticker)
-                news_list = stock.news[:limit]
-                processed = []
+            def get_news(self, ticker, limit=5):
+                """Improved news extraction with better fallback"""
+                try:
+                    stock = yf.Ticker(ticker)
+                    news_list = stock.news[:limit]
+                    processed = []
 
-                for item in news_list:
-                    # Extract title and link with multiple fallbacks
-                    title = None
-                    link = "#"
+                    for item in news_list:
+                        if not isinstance(item, dict):
+                            continue
 
-                    # Try different possible keys
-                    if isinstance(item, dict):
+                        # Robust title extraction
                         title = (item.get('title') or
                                  item.get('content') or
                                  item.get('headline') or
                                  "Market Update")
 
+                        # Robust link extraction
                         link = (item.get('link') or
                                 item.get('url') or
                                 item.get('canonicalUrl') or
                                 "#")
 
-                    # Clean title
-                    title = str(title).strip()
-                    if len(title) < 10 or title.lower() == "none":
-                        title = "Market News Update"
+                        publisher = item.get('publisher', 'Unknown Source')
 
-                    sentiment_label, score = self.analyze_sentiment(title)
+                        sentiment_label, score = self.analyze_sentiment(title)
 
-                    processed.append({
-                        "title": title,
-                        "link": link,
-                        "publisher": item.get('publisher', 'Unknown') if isinstance(item, dict) else 'Unknown',
-                        "sentiment": sentiment_label,
-                        "score": round(score, 3)
-                    })
-                return processed
-            except Exception:
-                return [{"title": "Unable to load news at this time", "link": "#", "publisher": "System",
+                        processed.append({
+                            "title": str(title).strip(),
+                            "link": link,
+                            "publisher": publisher,
+                            "sentiment": sentiment_label,
+                            "score": round(score, 3)
+                        })
+                    return processed if processed else [
+                        {"title": "No recent news available", "link": "#", "publisher": "System",
                          "sentiment": "⚪ Neutral", "score": 0.0}]
-
+                except Exception:
+                    return [{"title": "Unable to fetch news at this time", "link": "#", "publisher": "System",
+                             "sentiment": "⚪ Neutral", "score": 0.0}]
 
 # ====================== Initialize ======================
 pm = PortfolioManager()
