@@ -13,6 +13,7 @@ try:
 except ImportError:
     PLOTLY_AVAILABLE = False
 
+
 # VADER for advanced sentiment analysis
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 import nltk
@@ -95,7 +96,7 @@ class PortfolioManager:
         except:
             return 'Unknown'
 
-    # ====================== ADVANCED SENTIMENT ANALYSIS ======================
+    # ====================== IMPROVED NEWS WITH SENTIMENT ======================
     def analyze_sentiment(self, text):
         if not text:
             return "⚪ Neutral", 0.0
@@ -109,27 +110,35 @@ class PortfolioManager:
         else:
             return "⚪ Neutral", compound
 
-    def get_news(self, ticker, limit=6):
+    def get_news(self, ticker, limit=5):
         try:
             stock = yf.Ticker(ticker)
             news_list = stock.news[:limit]
             processed = []
+
             for item in news_list:
-                title = item.get('title', 'No Title')
-                link = item.get('link', '#')
-                publisher = item.get('publisher', 'Unknown')
-                sentiment_label, score = self.analyze_sentiment(title)
+                # Robust field extraction
+                title = item.get('title') or item.get('content') or "No Title Available"
+                link = item.get('link') or item.get('url') or "#"
+                publisher = item.get('publisher') or "Unknown Source"
+
+                # Clean up title if it's too long or empty
+                if len(str(title)) < 5:
+                    title = "Market Update"
+
+                sentiment_label, score = self.analyze_sentiment(str(title))
 
                 processed.append({
-                    "title": title,
+                    "title": str(title),
                     "link": link,
                     "publisher": publisher,
                     "sentiment": sentiment_label,
                     "score": round(score, 3)
                 })
             return processed
-        except:
-            return []
+        except Exception as e:
+            return [{"title": "Unable to fetch news", "link": "#", "publisher": "System", "sentiment": "⚪ Neutral",
+                     "score": 0.0}]
 
 
 # ====================== Initialize ======================
