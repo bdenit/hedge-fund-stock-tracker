@@ -294,7 +294,6 @@ with tab4:
 
 with tab5:
     st.header("📰 News & Sentiment Analysis")
-
     if pm.portfolio:
         for pos in pm.portfolio:
             with st.expander(f"**{pos['ticker']}** - Latest News"):
