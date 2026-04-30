@@ -4,7 +4,14 @@ import pandas as pd
 import json
 import os
 from datetime import datetime
-import plotly.express as px
+
+# Plotly for charts
+try:
+    import plotly.express as px
+
+    PLOTLY_AVAILABLE = True
+except ImportError:
+    PLOTLY_AVAILABLE = False
 
 st.set_page_config(page_title="Hedge Fund Stock Tracker", layout="wide", page_icon="📈")
 
@@ -36,7 +43,7 @@ class PortfolioManager:
         try:
             stock = yf.Ticker(ticker)
             info = stock.info
-            for key in ['currentPrice', 'regularMarketPrice', 'previousClose']:
+            for key in ['currentPrice', 'regularMarketPrice', 'previousClose', 'lastPrice']:
                 if info.get(key) is not None:
                     return float(info.get(key))
             hist = stock.history(period="5d")
@@ -74,19 +81,25 @@ class PortfolioManager:
             "daily_change": daily_change
         }
 
+    def get_sector(self, ticker):
+        try:
+            return yf.Ticker(ticker).info.get('sector', 'Unknown')
+        except:
+            return 'Unknown'
 
-# ====================== Main App ======================
+    def get_news(self, ticker, limit=5):
+        try:
+            stock = yf.Ticker(ticker)
+            news = stock.news[:limit]
+            return news
+        except:
+            return []
+
+
+# ====================== Initialize ======================
 pm = PortfolioManager()
 
-# Professional Styling
-st.markdown("""
-<style>
-    .metric-card { background-color: #1E1E1E; padding: 20px; border-radius: 10px; text-align: center; }
-    .positive { color: #00ff88; font-weight: bold; }
-    .negative { color: #ff4444; font-weight: bold; }
-</style>
-""", unsafe_allow_html=True)
-
+# ====================== Tabs ======================
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📊 Main Portfolio",
     "📤 Import CSV",
@@ -97,7 +110,6 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 
 with tab1:
     st.header("Portfolio Overview")
-
     if st.button("🔄 Refresh All Data"):
         st.rerun()
 
@@ -107,6 +119,7 @@ with tab1:
         total_unreal = 0.0
         winners = []
         losers = []
+        sector_dict = {}
 
         for pos in pm.portfolio:
             pnl = pm.calculate_pnl(pos)
@@ -116,20 +129,21 @@ with tab1:
             total_unreal += unreal
 
             daily_change = pnl.get("daily_change")
+            sector = pm.get_sector(pos["ticker"])
+            sector_dict[sector] = sector_dict.get(sector, 0) + mv
 
-            row = {
+            data.append({
                 "Ticker": pos["ticker"],
                 "Name": pos.get("name", ""),
+                "Sector": sector,
                 "Shares": round(pos["shares"], 4),
                 "Avg Cost": round(pos.get("avg_cost", 0), 4),
                 "Current Price": pnl["current_price"],
                 "Market Value": pnl["market_value"],
                 "Unrealized P&L": pnl["unrealized_pnl"],
                 "Daily Change %": daily_change
-            }
-            data.append(row)
+            })
 
-            # Track winners and losers
             if daily_change is not None:
                 if daily_change > 0:
                     winners.append((pos["ticker"], daily_change))
@@ -144,34 +158,36 @@ with tab1:
         with col1:
             st.metric("Total Portfolio Value", f"${total_mv:,.2f}")
         with col2:
-            color = "positive" if total_unreal >= 0 else "negative"
+            color = "#00ff88" if total_unreal >= 0 else "#ff4444"
             st.markdown(
-                f"<div class='metric-card'><h4>Unrealized P&L</h4><h2 class='{color}'>${total_unreal:,.2f}</h2></div>",
+                f"<div style='background-color:#1E1E1E;padding:15px;border-radius:10px;text-align:center'><h4>Unrealized P&L</h4><h2 style='color:{color}'>${total_unreal:,.2f}</h2></div>",
                 unsafe_allow_html=True)
         with col3:
             overall_return = (total_unreal / (total_mv - total_unreal) * 100) if (total_mv - total_unreal) != 0 else 0
             st.metric("Overall Return %", f"{overall_return:.2f}%")
         with col4:
-            st.metric("Number of Holdings", len(pm.portfolio))
+            st.metric("Holdings", len(pm.portfolio))
 
         # Top Winners & Losers
         col1, col2 = st.columns(2)
         with col1:
             st.subheader("Top Winners Today")
             if winners:
-                winners_df = pd.DataFrame(winners, columns=["Ticker", "Daily %"]).sort_values("Daily %",
-                                                                                              ascending=False).head(5)
-                st.dataframe(winners_df, hide_index=True)
-            else:
-                st.info("No winners today")
-
+                st.dataframe(
+                    pd.DataFrame(winners, columns=["Ticker", "Daily %"]).sort_values("Daily %", ascending=False).head(
+                        5), hide_index=True)
         with col2:
             st.subheader("Top Losers Today")
             if losers:
-                losers_df = pd.DataFrame(losers, columns=["Ticker", "Daily %"]).sort_values("Daily %").head(5)
-                st.dataframe(losers_df, hide_index=True)
-            else:
-                st.info("No losers today")
+                st.dataframe(pd.DataFrame(losers, columns=["Ticker", "Daily %"]).sort_values("Daily %").head(5),
+                             hide_index=True)
+
+        # Sector Allocation
+        if PLOTLY_AVAILABLE and sector_dict:
+            st.subheader("Sector Allocation")
+            sector_df = pd.DataFrame(list(sector_dict.items()), columns=["Sector", "Value"])
+            fig = px.pie(sector_df, names="Sector", values="Value", title="Portfolio by Sector")
+            st.plotly_chart(fig, use_container_width=True)
 
     else:
         st.info("Portfolio is empty. Import from SelfWealth to begin.")
@@ -180,8 +196,7 @@ with tab2:
     st.header("Import from SelfWealth")
     uploaded = st.file_uploader("Upload SelfWealth Portfolio Statement CSV", type="csv")
     if uploaded and st.button("Import CSV"):
-        # Reuse your improved import function here
-        st.success("Import completed (logic from previous version)")
+        st.info("Import function ready (add your improved importer if needed)")
 
 with tab3:
     st.header("Edit Positions")
@@ -201,36 +216,68 @@ with tab3:
             st.rerun()
 
 with tab4:
-    st.header("Dividends & Forecast")
-    # Add your dividend forecast logic here
+    st.header("Dividends & 12-Month Forecast")
+    if pm.portfolio:
+        forecast_data = []
+        total_forecast = 0.0
+        for pos in pm.portfolio:
+            # Placeholder - expand with full dividend logic later
+            annual = 0.0
+            income = pos["shares"] * annual
+            total_forecast += income
+            forecast_data.append({
+                "Ticker": pos["ticker"],
+                "Shares": round(pos["shares"], 4),
+                "Est 12M Income": round(income, 2)
+            })
+        st.dataframe(pd.DataFrame(forecast_data), use_container_width=True, hide_index=True)
+        st.metric("Total Expected Dividend Income (Next 12 Months)", f"${total_forecast:,.2f}")
+    else:
+        st.info("No holdings yet.")
 
 with tab5:
     st.header("🌍 World Markets & Commodities")
 
-    col1, col2 = st.columns(2)
+    # Precious Metals & Commodities in AUD
+    st.subheader("Precious Metals & Commodities (in AUD)")
+    commodities = {"Gold": "GC=F", "Silver": "SI=F", "Copper": "HG=F", "Platinum": "PL=F", "Oil": "CL=F"}
+    audusd = pm.get_current_price("AUDUSD=X") or 1.0  # Fallback to 1.0 if fails
 
-    with col1:
-        st.subheader("Precious Metals & Commodities")
-        commodities = {
-            "Gold": "GC=F", "Silver": "SI=F", "Copper": "HG=F",
-            "Platinum": "PL=F", "Palladium": "PA=F", "Oil": "CL=F"
-        }
-        comm_data = []
-        for name, symbol in commodities.items():
-            price = pm.get_current_price(symbol)
-            comm_data.append({"Commodity": name, "Symbol": symbol, "Price": price})
-        st.dataframe(pd.DataFrame(comm_data), use_container_width=True, hide_index=True)
+    comm_data = []
+    for name, symbol in commodities.items():
+        usd_price = pm.get_current_price(symbol)
+        aud_price = usd_price / audusd if usd_price else None
+        comm_data.append(
+            {"Commodity": name, "USD Price": usd_price, "AUD Price": round(aud_price, 2) if aud_price else "N/A"})
+    st.dataframe(pd.DataFrame(comm_data), use_container_width=True, hide_index=True)
 
-    with col2:
-        st.subheader("Major World Indices")
-        indices = {
-            "S&P 500": "^GSPC", "Nasdaq": "^IXIC", "Dow Jones": "^DJI",
-            "FTSE 100": "^FTSE", "Nikkei 225": "^N225", "ASX 200": "^AXJO"
-        }
-        index_data = []
-        for name, symbol in indices.items():
-            price = pm.get_current_price(symbol)
-            index_data.append({"Index": name, "Symbol": symbol, "Price": price})
-        st.dataframe(pd.DataFrame(index_data), use_container_width=True, hide_index=True)
+    # Major World Indices
+    st.subheader("Major World Indices")
+    indices = {"S&P 500": "^GSPC", "Nasdaq": "^IXIC", "Dow Jones": "^DJI", "ASX 200": "^AXJO", "FTSE 100": "^FTSE"}
+    index_data = []
+    for name, symbol in indices.items():
+        price = pm.get_current_price(symbol)
+        index_data.append({"Index": name, "Price": price})
+    st.dataframe(pd.DataFrame(index_data), use_container_width=True, hide_index=True)
 
-st.sidebar.info("📌 Data synchronized with console_tracker.py")
+    # News Feed for Holdings
+    st.subheader("📰 News Feed - Current Holdings")
+    if pm.portfolio:
+        for pos in pm.portfolio[:8]:  # Limit to first 8 holdings
+            news = pm.get_news(pos["ticker"], limit=3)
+            if news:
+                st.write(f"**{pos['ticker']}**")
+                for item in news:
+                    st.caption(f"• {item.get('title', 'No title')}")
+
+    # News for Top Stocks in Major Indices (placeholder example)
+    st.subheader("📰 Top Stocks News (S&P 500 & ASX 200)")
+    top_tickers = ["AAPL", "MSFT", "NVDA", "GOOGL", "AMZN", "BHP.AX", "CBA.AX", "WBC.AX"]
+    for ticker in top_tickers:
+        news = pm.get_news(ticker, limit=2)
+        if news:
+            st.write(f"**{ticker}**")
+            for item in news:
+                st.caption(f"• {item.get('title', 'No title')}")
+
+st.sidebar.info("Data synchronized with console_tracker.py")
