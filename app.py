@@ -298,7 +298,7 @@ with tab5:
     if pm.portfolio:
         for pos in pm.portfolio:
             with st.expander(f"**{pos['ticker']}** - Latest News"):
-                news_items = pm.get_news(pos["ticker"], limit=6)
+                news_items = pm.get_news(pos["ticker"], limit=5)
                 if news_items:
                     for item in news_items:
                         st.markdown(f"**[{item['title']}]({item['link']})**")
