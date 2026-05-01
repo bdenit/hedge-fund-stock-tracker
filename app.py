@@ -113,11 +113,12 @@ class PortfolioManager:
                 title = "Market Update"
                 link = "#"
 
+                # Case 1: item is a dict
                 if isinstance(item, dict):
-                    # Try common keys
                     title = (item.get('title') or item.get('content') or item.get('headline') or "Market Update")
                     link = (item.get('link') or item.get('url') or item.get('canonicalUrl') or "#")
 
+                # Case 2: item is a string (JSON string)
                 elif isinstance(item, str):
                     # Try to parse as JSON
                     try:
@@ -130,8 +131,12 @@ class PortfolioManager:
                         if match:
                             title = match.group(1)
                         else:
-                            # Last resort: take first 100 characters
-                            title = item[:100]
+                            # Take first reasonable sentence
+                            match = re.search(r'([A-Z][^.!?]{20,200}[.!?])', item)
+                            if match:
+                                title = match.group(1)
+                            else:
+                                title = item[:150]
 
                 # Clean title
                 title = re.sub(r'\{.*?\}', '', str(title))  # Remove JSON fragments
