@@ -3,6 +3,7 @@ import yfinance as yf
 import pandas as pd
 import json
 import os
+import re
 from datetime import datetime
 
 # VADER Sentiment
@@ -102,31 +103,41 @@ class PortfolioManager:
             return "⚪ Neutral", compound
 
     def get_news(self, ticker, limit=5):
-        """Clean and robust news extraction"""
+        """Final robust news extraction"""
         try:
             stock = yf.Ticker(ticker)
             news_list = stock.news[:limit]
             processed = []
 
             for item in news_list:
+                # Handle both dict and string (JSON string) cases
+                if isinstance(item, str):
+                    try:
+                        item = json.loads(item)
+                    except:
+                        continue
                 if not isinstance(item, dict):
                     continue
 
                 # Extract title with multiple fallbacks
                 title = None
-                if 'title' in item and item['title']:
-                    title = item['title']
-                elif 'content' in item and item['content']:
-                    title = item['content']
-                elif 'headline' in item and item['headline']:
-                    title = item['headline']
-                else:
+                for key in ['title', 'content', 'headline', 'summary']:
+                    if key in item and item[key]:
+                        title = item[key]
+                        break
+
+                if not title:
                     title = "Market Update"
 
-                # Extract link with multiple fallbacks
+                # Clean title (remove any remaining JSON fragments)
+                title = re.sub(r'\{.*?\}', '', str(title)).strip()
+                if len(title) < 10:
+                    title = "Market Update"
+
+                # Extract link
                 link = "#"
                 for key in ['link', 'url', 'canonicalUrl', 'clickThroughUrl']:
-                    if key in item and item[key]:
+                    if key in item and isinstance(item[key], str) and item[key].startswith('http'):
                         link = item[key]
                         break
 
@@ -135,7 +146,7 @@ class PortfolioManager:
                 sentiment_label, score = self.analyze_sentiment(title)
 
                 processed.append({
-                    "title": str(title).strip()[:200],  # Limit length
+                    "title": title[:250],  # Limit length for display
                     "link": link,
                     "publisher": publisher,
                     "sentiment": sentiment_label,
