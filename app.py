@@ -89,7 +89,7 @@ class PortfolioManager:
             "daily_change": daily_change
         }
 
-    # ====================== CLEAN NEWS + SENTIMENT ======================
+    # ====================== ADVANCED NEWS + SENTIMENT ======================
     def analyze_sentiment(self, text):
         if not text:
             return "⚪ Neutral", 0.0
@@ -103,24 +103,24 @@ class PortfolioManager:
             return "⚪ Neutral", compound
 
     def get_news(self, ticker, limit=5):
-        """Final robust news extraction with JSON parsing fallback"""
+        """Final robust news extraction"""
         try:
             stock = yf.Ticker(ticker)
             raw_news = stock.news[:limit]
             processed = []
 
             for item in raw_news:
-                # If item is a string (JSON string), try to parse it
-                if isinstance(item, str):
+                # Case 1: item is already a dict
+                if isinstance(item, dict):
+                    item_dict = item
+                # Case 2: item is a JSON string
+                elif isinstance(item, str):
                     try:
-                        item = json.loads(item)
+                        item_dict = json.loads(item)
                     except:
-                        # If parsing fails, try to extract title from the string
+                        # Try to extract title using regex from raw string
                         match = re.search(r"'title':\s*'([^']+)'", item)
-                        if match:
-                            title = match.group(1)
-                        else:
-                            title = "Market Update"
+                        title = match.group(1) if match else "Market Update"
                         link = "#"
                         processed.append({
                             "title": title,
@@ -130,14 +130,13 @@ class PortfolioManager:
                             "score": 0.0
                         })
                         continue
-
-                if not isinstance(item, dict):
+                else:
                     continue
 
                 # Extract title
-                title = (item.get('title') or
-                         item.get('content') or
-                         item.get('headline') or
+                title = (item_dict.get('title') or
+                         item_dict.get('content') or
+                         item_dict.get('headline') or
                          "Market Update")
 
                 # Clean title - remove JSON fragments
@@ -148,11 +147,11 @@ class PortfolioManager:
                 # Extract link
                 link = "#"
                 for key in ['link', 'url', 'canonicalUrl', 'clickThroughUrl']:
-                    if key in item and isinstance(item[key], str) and item[key].startswith('http'):
-                        link = item[key]
+                    if key in item_dict and isinstance(item_dict[key], str) and item_dict[key].startswith('http'):
+                        link = item_dict[key]
                         break
 
-                publisher = item.get('publisher', 'Unknown Source')
+                publisher = item_dict.get('publisher', 'Unknown Source')
 
                 sentiment_label, score = self.analyze_sentiment(title)
 
