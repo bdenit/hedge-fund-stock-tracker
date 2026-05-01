@@ -5,6 +5,7 @@ import json
 import os
 import requests
 from datetime import datetime, timedelta
+import re
 
 # VADER Sentiment
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
@@ -20,9 +21,9 @@ st.title("Hedge Fund Stock Tracker")
 st.markdown("**Professional Multi-Asset Portfolio Intelligence Platform**")
 
 PORTFOLIO_FILE = "hedge_fund_portfolio.json"
-NEWS_API_KEY = "523c8e0c5905413ea50dce4eef9948ec"
+FINNHUB_API_KEY = "YOUR_FINNHUB_API_KEY_HERE"  # ←←← REPLACE WITH YOUR KEY
 
-# Simple in-memory cache
+# In-memory cache (30 minutes)
 news_cache = {}
 
 
@@ -86,7 +87,7 @@ class PortfolioManager:
             "daily_change": daily_change
         }
 
-    # ====================== CACHED NEWS SEARCH ======================
+    # ====================== FINNHUB + YFINANCE FALLBACK ======================
     def analyze_sentiment(self, text):
         if not text:
             return "⚪ Neutral", 0.0
@@ -100,61 +101,85 @@ class PortfolioManager:
             return "⚪ Neutral", compound
 
     def get_news(self, ticker, limit=6):
+        """Finnhub primary + yfinance fallback with caching"""
         cache_key = ticker
         now = datetime.now()
 
-        # Check cache (valid for 30 minutes)
+        # Return cached result if still valid
         if cache_key in news_cache:
             cached_time, cached_news = news_cache[cache_key]
             if now - cached_time < timedelta(minutes=30):
                 return cached_news
 
+        # Try Finnhub first (better structured data)
         try:
-            stock = yf.Ticker(ticker)
-            company_name = stock.info.get('shortName') or stock.info.get('longName') or ticker.replace('.AX', '')
+            # Finnhub company-news needs from/to dates (last 30 days)
+            from_date = (now - timedelta(days=30)).strftime('%Y-%m-%d')
+            to_date = now.strftime('%Y-%m-%d')
 
-            query = f'"{ticker}" OR "{company_name}"'
-            url = f"https://newsapi.org/v2/everything?q={query}&apiKey={NEWS_API_KEY}&sortBy=publishedAt&pageSize={limit}&language=en"
-
+            url = f"https://finnhub.io/api/v1/company-news?symbol={ticker}&from={from_date}&to={to_date}&token={d7q3ug9r01qosaaqhtg0d7q3ug9r01qosaaqhtgg}"
             response = requests.get(url, timeout=10)
 
-            if response.status_code == 429:
-                return [{"title": "Daily NewsAPI limit reached (100 requests/day). Try again tomorrow.", "link": "#",
-                         "publisher": "System", "sentiment": "⚪ Neutral", "score": 0.0}]
-            if response.status_code != 200:
-                return [
-                    {"title": f"Unable to fetch news (HTTP {response.status_code})", "link": "#", "publisher": "System",
-                     "sentiment": "⚪ Neutral", "score": 0.0}]
+            if response.status_code == 200:
+                articles = response.json()
+                processed = []
+                for article in articles[:limit]:
+                    title = article.get('headline', 'Market Update')
+                    link = article.get('url', '#')
+                    publisher = article.get('source', 'Finnhub')
+                    sentiment_label, score = self.analyze_sentiment(title)
+                    processed.append({
+                        "title": title[:220],
+                        "link": link,
+                        "publisher": publisher,
+                        "sentiment": sentiment_label,
+                        "score": round(score, 3)
+                    })
+                if processed:
+                    news_cache[cache_key] = (now, processed)
+                    return processed
+        except:
+            pass  # Fall through to yfinance
 
-            articles = response.json().get('articles', [])
+        # Fallback: yfinance.news
+        try:
+            stock = yf.Ticker(ticker)
+            raw_news = stock.news[:limit]
             processed = []
+            for item in raw_news:
+                if isinstance(item, dict):
+                    title = item.get('title') or item.get('content') or "Market Update"
+                    link = item.get('link') or item.get('url') or "#"
+                elif isinstance(item, str):
+                    match = re.search(r"'title':\s*'([^']+)'", item)
+                    title = match.group(1) if match else str(item)[:150]
+                    link = "#"
+                else:
+                    continue
 
-            for article in articles:
-                title = article.get('title', 'Market Update').split(' - ')[0].strip()
-                link = article.get('url', '#')
-                publisher = article.get('source', {}).get('name', 'Unknown')
+                title = re.sub(r'\{.*?\}', '', str(title)).strip()[:220]
+                if len(title) < 10:
+                    title = "Market Update"
 
                 sentiment_label, score = self.analyze_sentiment(title)
-
                 processed.append({
-                    "title": title[:220],
+                    "title": title,
                     "link": link,
-                    "publisher": publisher,
+                    "publisher": "Yahoo Finance",
                     "sentiment": sentiment_label,
                     "score": round(score, 3)
                 })
+            if processed:
+                news_cache[cache_key] = (now, processed)
+                return processed
+        except:
+            pass
 
-            result = processed if processed else [
-                {"title": "No major news found in the last 30 days", "link": "#", "publisher": "System",
-                 "sentiment": "⚪ Neutral", "score": 0.0}]
-
-            # Cache the result
-            news_cache[cache_key] = (now, result)
-            return result
-
-        except Exception as e:
-            return [{"title": f"Error fetching news: {str(e)[:80]}", "link": "#", "publisher": "System",
-                     "sentiment": "⚪ Neutral", "score": 0.0}]
+        # Final fallback
+        result = [{"title": "No recent news available at this time", "link": "#", "publisher": "System",
+                   "sentiment": "⚪ Neutral", "score": 0.0}]
+        news_cache[cache_key] = (now, result)
+        return result
 
 
 # ====================== Streamlit UI ======================
@@ -211,7 +236,7 @@ with tab1:
 with tab5:
     st.header("📰 News & Sentiment Analysis")
     if st.button("🔄 Refresh All News"):
-        news_cache.clear()  # Clear cache to force fresh fetch
+        news_cache.clear()
         st.rerun()
 
     if pm.portfolio:
@@ -225,4 +250,4 @@ with tab5:
     else:
         st.info("Add holdings to see news and sentiment analysis.")
 
-st.sidebar.info("News powered by NewsAPI.org (100 requests/day limit) • Cached for 30 min")
+st.sidebar.info("News: Finnhub → yfinance fallback | Cached 30 min")
