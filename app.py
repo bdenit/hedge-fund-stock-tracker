@@ -3,7 +3,7 @@ import yfinance as yf
 import pandas as pd
 import json
 import os
-import re
+import requests
 from datetime import datetime
 
 # VADER Sentiment
@@ -27,6 +27,7 @@ st.title("Hedge Fund Stock Tracker")
 st.markdown("**Professional Multi-Asset Portfolio Intelligence Platform**")
 
 PORTFOLIO_FILE = "hedge_fund_portfolio.json"
+NEWS_API_KEY = "523c8e0c5905413ea50dce4eef9948ec"  # Your key
 
 
 class PortfolioManager:
@@ -89,7 +90,7 @@ class PortfolioManager:
             "daily_change": daily_change
         }
 
-    # ====================== ADVANCED NEWS + SENTIMENT ======================
+    # ====================== ADVANCED NEWS WITH NEWSAPI ======================
     def analyze_sentiment(self, text):
         if not text:
             return "⚪ Neutral", 0.0
@@ -103,50 +104,22 @@ class PortfolioManager:
             return "⚪ Neutral", compound
 
     def get_news(self, ticker, limit=5):
-        """Final robust news extraction with aggressive cleaning"""
+        """Clean news using NewsAPI.org"""
         try:
-            stock = yf.Ticker(ticker)
-            raw_news = stock.news[:limit]
+            # Search for news about the ticker
+            url = f"https://newsapi.org/v2/everything?q={ticker}&apiKey={NEWS_API_KEY}&sortBy=publishedAt&pageSize={limit}"
+            response = requests.get(url)
+            if response.status_code != 200:
+                return [{"title": "Unable to fetch news", "link": "#", "publisher": "System", "sentiment": "⚪ Neutral",
+                         "score": 0.0}]
+
+            articles = response.json().get('articles', [])
+
             processed = []
-
-            for item in raw_news:
-                title = "Market Update"
-                link = "#"
-
-                # Case 1: item is a dict
-                if isinstance(item, dict):
-                    title = (item.get('title') or item.get('content') or item.get('headline') or "Market Update")
-                    link = (item.get('link') or item.get('url') or item.get('canonicalUrl') or "#")
-
-                # Case 2: item is a string (JSON string)
-                elif isinstance(item, str):
-                    # Try to parse as JSON
-                    try:
-                        item_dict = json.loads(item)
-                        title = (item_dict.get('title') or item_dict.get('content') or "Market Update")
-                        link = (item_dict.get('link') or item_dict.get('url') or "#")
-                    except:
-                        # Use regex to extract title from raw string
-                        match = re.search(r"'title':\s*'([^']+)'", item)
-                        if match:
-                            title = match.group(1)
-                        else:
-                            # Take first reasonable sentence
-                            match = re.search(r'([A-Z][^.!?]{20,200}[.!?])', item)
-                            if match:
-                                title = match.group(1)
-                            else:
-                                title = item[:150]
-
-                # Clean title
-                title = re.sub(r'\{.*?\}', '', str(title))  # Remove JSON fragments
-                title = re.sub(r'\[.*?\]', '', title)
-                title = title.strip()[:250]
-
-                if len(title) < 10:
-                    title = "Market Update"
-
-                publisher = "Unknown Source"
+            for article in articles:
+                title = article.get('title', 'Market Update')
+                link = article.get('url', '#')
+                publisher = article.get('source', {}).get('name', 'Unknown')
 
                 sentiment_label, score = self.analyze_sentiment(title)
 
@@ -157,7 +130,6 @@ class PortfolioManager:
                     "sentiment": sentiment_label,
                     "score": round(score, 3)
                 })
-
             return processed if processed else [
                 {"title": "No recent news available", "link": "#", "publisher": "System", "sentiment": "⚪ Neutral",
                  "score": 0.0}]
@@ -231,4 +203,4 @@ with tab5:
     else:
         st.info("Add holdings to see news and sentiment analysis.")
 
-st.sidebar.info("Data synchronized with console_tracker.py")
+st.sidebar.info("News powered by NewsAPI.org | Data synced with console_tracker.py")
