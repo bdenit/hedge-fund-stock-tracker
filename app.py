@@ -4,6 +4,7 @@ import pandas as pd
 import json
 import os
 import requests
+from datetime import datetime, timedelta
 
 # VADER Sentiment
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
@@ -13,13 +14,6 @@ nltk.download('vader_lexicon', quiet=True)
 
 sia = SentimentIntensityAnalyzer()
 
-try:
-    import plotly.express as px
-
-    PLOTLY_AVAILABLE = True
-except ImportError:
-    PLOTLY_AVAILABLE = False
-
 st.set_page_config(page_title="Hedge Fund Stock Tracker", layout="wide", page_icon="📈")
 
 st.title("Hedge Fund Stock Tracker")
@@ -27,6 +21,9 @@ st.markdown("**Professional Multi-Asset Portfolio Intelligence Platform**")
 
 PORTFOLIO_FILE = "hedge_fund_portfolio.json"
 NEWS_API_KEY = "523c8e0c5905413ea50dce4eef9948ec"
+
+# Simple in-memory cache
+news_cache = {}
 
 
 class PortfolioManager:
@@ -89,7 +86,7 @@ class PortfolioManager:
             "daily_change": daily_change
         }
 
-    # ====================== IMPROVED NEWS SEARCH v2 ======================
+    # ====================== CACHED NEWS SEARCH ======================
     def analyze_sentiment(self, text):
         if not text:
             return "⚪ Neutral", 0.0
@@ -103,27 +100,37 @@ class PortfolioManager:
             return "⚪ Neutral", compound
 
     def get_news(self, ticker, limit=6):
-        """Even stronger news search"""
+        cache_key = ticker
+        now = datetime.now()
+
+        # Check cache (valid for 30 minutes)
+        if cache_key in news_cache:
+            cached_time, cached_news = news_cache[cache_key]
+            if now - cached_time < timedelta(minutes=30):
+                return cached_news
+
         try:
             stock = yf.Ticker(ticker)
             company_name = stock.info.get('shortName') or stock.info.get('longName') or ticker.replace('.AX', '')
 
-            # Stronger query: ticker + company name + common variations
-            query = f'"{ticker}" OR "{company_name}" OR "BHP Group"'
+            query = f'"{ticker}" OR "{company_name}"'
             url = f"https://newsapi.org/v2/everything?q={query}&apiKey={NEWS_API_KEY}&sortBy=publishedAt&pageSize={limit}&language=en"
 
             response = requests.get(url, timeout=10)
+
+            if response.status_code == 429:
+                return [{"title": "Daily NewsAPI limit reached (100 requests/day). Try again tomorrow.", "link": "#",
+                         "publisher": "System", "sentiment": "⚪ Neutral", "score": 0.0}]
             if response.status_code != 200:
-                return [{"title": "Unable to fetch news (API error)", "link": "#", "publisher": "System",
-                         "sentiment": "⚪ Neutral", "score": 0.0}]
+                return [
+                    {"title": f"Unable to fetch news (HTTP {response.status_code})", "link": "#", "publisher": "System",
+                     "sentiment": "⚪ Neutral", "score": 0.0}]
 
             articles = response.json().get('articles', [])
             processed = []
 
             for article in articles:
-                title = article.get('title', 'Market Update')
-                # Remove any [source] tags that NewsAPI sometimes adds
-                title = title.split(' - ')[0].strip()
+                title = article.get('title', 'Market Update').split(' - ')[0].strip()
                 link = article.get('url', '#')
                 publisher = article.get('source', {}).get('name', 'Unknown')
 
@@ -137,13 +144,16 @@ class PortfolioManager:
                     "score": round(score, 3)
                 })
 
-            if not processed:
-                return [{"title": "No major news found in the last 30 days", "link": "#", "publisher": "System",
-                         "sentiment": "⚪ Neutral", "score": 0.0}]
+            result = processed if processed else [
+                {"title": "No major news found in the last 30 days", "link": "#", "publisher": "System",
+                 "sentiment": "⚪ Neutral", "score": 0.0}]
 
-            return processed
+            # Cache the result
+            news_cache[cache_key] = (now, result)
+            return result
+
         except Exception as e:
-            return [{"title": f"Unable to fetch news ({str(e)[:50]})", "link": "#", "publisher": "System",
+            return [{"title": f"Error fetching news: {str(e)[:80]}", "link": "#", "publisher": "System",
                      "sentiment": "⚪ Neutral", "score": 0.0}]
 
 
@@ -200,6 +210,9 @@ with tab1:
 
 with tab5:
     st.header("📰 News & Sentiment Analysis")
+    if st.button("🔄 Refresh All News"):
+        news_cache.clear()  # Clear cache to force fresh fetch
+        st.rerun()
 
     if pm.portfolio:
         for pos in pm.portfolio:
@@ -212,4 +225,4 @@ with tab5:
     else:
         st.info("Add holdings to see news and sentiment analysis.")
 
-st.sidebar.info("News powered by NewsAPI.org • Improved search (ticker + company name)")
+st.sidebar.info("News powered by NewsAPI.org (100 requests/day limit) • Cached for 30 min")
