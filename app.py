@@ -89,7 +89,7 @@ class PortfolioManager:
             "daily_change": daily_change
         }
 
-    # ====================== ADVANCED NEWS + SENTIMENT ======================
+    # ====================== CLEAN NEWS + SENTIMENT ======================
     def analyze_sentiment(self, text):
         if not text:
             return "⚪ Neutral", 0.0
@@ -106,20 +106,21 @@ class PortfolioManager:
         """Final robust news extraction"""
         try:
             stock = yf.Ticker(ticker)
-            news_list = stock.news[:limit]
+            raw_news = stock.news[:limit]
             processed = []
 
-            for item in news_list:
-                # Handle both dict and string (JSON string) cases
+            for item in raw_news:
+                # Handle string (JSON string) case
                 if isinstance(item, str):
                     try:
                         item = json.loads(item)
                     except:
                         continue
+
                 if not isinstance(item, dict):
                     continue
 
-                # Extract title with multiple fallbacks
+                # Extract title - multiple possible keys
                 title = None
                 for key in ['title', 'content', 'headline', 'summary']:
                     if key in item and item[key]:
@@ -129,10 +130,10 @@ class PortfolioManager:
                 if not title:
                     title = "Market Update"
 
-                # Clean title (remove any remaining JSON fragments)
-                title = re.sub(r'\{.*?\}', '', str(title)).strip()
-                if len(title) < 10:
-                    title = "Market Update"
+                # Clean title - remove JSON fragments and long metadata
+                title = re.sub(r'\{.*?\}', '', str(title))
+                title = re.sub(r'\[.*?\]', '', title)
+                title = title.strip()[:200]
 
                 # Extract link
                 link = "#"
@@ -146,15 +147,17 @@ class PortfolioManager:
                 sentiment_label, score = self.analyze_sentiment(title)
 
                 processed.append({
-                    "title": title[:250],  # Limit length for display
+                    "title": title,
                     "link": link,
                     "publisher": publisher,
                     "sentiment": sentiment_label,
                     "score": round(score, 3)
                 })
+
             return processed if processed else [
                 {"title": "No recent news available", "link": "#", "publisher": "System", "sentiment": "⚪ Neutral",
                  "score": 0.0}]
+
         except Exception:
             return [{"title": "Unable to fetch news at this time", "link": "#", "publisher": "System",
                      "sentiment": "⚪ Neutral", "score": 0.0}]
