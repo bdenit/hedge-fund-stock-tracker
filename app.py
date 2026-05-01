@@ -4,7 +4,6 @@ import pandas as pd
 import json
 import os
 import requests
-from datetime import datetime
 
 # VADER Sentiment
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
@@ -90,13 +89,7 @@ class PortfolioManager:
             "daily_change": daily_change
         }
 
-    def get_sector(self, ticker):
-        try:
-            return yf.Ticker(ticker).info.get('sector', 'Unknown')
-        except:
-            return 'Unknown'
-
-    # ====================== IMPROVED NEWS SEARCH ======================
+    # ====================== IMPROVED NEWS SEARCH v2 ======================
     def analyze_sentiment(self, text):
         if not text:
             return "⚪ Neutral", 0.0
@@ -109,44 +102,48 @@ class PortfolioManager:
         else:
             return "⚪ Neutral", compound
 
-    def get_news(self, ticker, limit=5):
-        """Improved news search using both ticker and company name"""
+    def get_news(self, ticker, limit=6):
+        """Even stronger news search"""
         try:
-            # Get company name for better search
             stock = yf.Ticker(ticker)
-            company_name = stock.info.get('shortName') or stock.info.get('longName') or ticker
+            company_name = stock.info.get('shortName') or stock.info.get('longName') or ticker.replace('.AX', '')
 
-            # Search using both ticker and company name
-            query = f"{ticker} OR {company_name}"
+            # Stronger query: ticker + company name + common variations
+            query = f'"{ticker}" OR "{company_name}" OR "BHP Group"'
             url = f"https://newsapi.org/v2/everything?q={query}&apiKey={NEWS_API_KEY}&sortBy=publishedAt&pageSize={limit}&language=en"
 
-            response = requests.get(url)
+            response = requests.get(url, timeout=10)
             if response.status_code != 200:
-                return [{"title": "Unable to fetch news", "link": "#", "publisher": "System", "sentiment": "⚪ Neutral",
-                         "score": 0.0}]
+                return [{"title": "Unable to fetch news (API error)", "link": "#", "publisher": "System",
+                         "sentiment": "⚪ Neutral", "score": 0.0}]
 
             articles = response.json().get('articles', [])
             processed = []
 
             for article in articles:
                 title = article.get('title', 'Market Update')
+                # Remove any [source] tags that NewsAPI sometimes adds
+                title = title.split(' - ')[0].strip()
                 link = article.get('url', '#')
                 publisher = article.get('source', {}).get('name', 'Unknown')
 
                 sentiment_label, score = self.analyze_sentiment(title)
 
                 processed.append({
-                    "title": title,
+                    "title": title[:220],
                     "link": link,
                     "publisher": publisher,
                     "sentiment": sentiment_label,
                     "score": round(score, 3)
                 })
-            return processed if processed else [
-                {"title": "No major news in the last 30 days", "link": "#", "publisher": "System",
-                 "sentiment": "⚪ Neutral", "score": 0.0}]
-        except Exception:
-            return [{"title": "Unable to fetch news at this time", "link": "#", "publisher": "System",
+
+            if not processed:
+                return [{"title": "No major news found in the last 30 days", "link": "#", "publisher": "System",
+                         "sentiment": "⚪ Neutral", "score": 0.0}]
+
+            return processed
+        except Exception as e:
+            return [{"title": f"Unable to fetch news ({str(e)[:50]})", "link": "#", "publisher": "System",
                      "sentiment": "⚪ Neutral", "score": 0.0}]
 
 
@@ -207,7 +204,7 @@ with tab5:
     if pm.portfolio:
         for pos in pm.portfolio:
             with st.expander(f"**{pos['ticker']}** - Latest News"):
-                news_items = pm.get_news(pos["ticker"], limit=5)
+                news_items = pm.get_news(pos["ticker"], limit=6)
                 for item in news_items:
                     st.markdown(f"**[{item['title']}]({item['link']})**")
                     st.caption(f"{item['publisher']} • {item['sentiment']} (Score: {item['score']})")
@@ -215,4 +212,4 @@ with tab5:
     else:
         st.info("Add holdings to see news and sentiment analysis.")
 
-st.sidebar.info("News powered by NewsAPI.org | Data synced with console_tracker.py")
+st.sidebar.info("News powered by NewsAPI.org • Improved search (ticker + company name)")
