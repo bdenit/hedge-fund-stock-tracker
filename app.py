@@ -103,55 +103,45 @@ class PortfolioManager:
             return "⚪ Neutral", compound
 
     def get_news(self, ticker, limit=5):
-        """Final robust news extraction"""
+        """Final robust news extraction with aggressive cleaning"""
         try:
             stock = yf.Ticker(ticker)
             raw_news = stock.news[:limit]
             processed = []
 
             for item in raw_news:
-                # Case 1: item is already a dict
+                title = "Market Update"
+                link = "#"
+
                 if isinstance(item, dict):
-                    item_dict = item
-                # Case 2: item is a JSON string
+                    # Try common keys
+                    title = (item.get('title') or item.get('content') or item.get('headline') or "Market Update")
+                    link = (item.get('link') or item.get('url') or item.get('canonicalUrl') or "#")
+
                 elif isinstance(item, str):
+                    # Try to parse as JSON
                     try:
                         item_dict = json.loads(item)
+                        title = (item_dict.get('title') or item_dict.get('content') or "Market Update")
+                        link = (item_dict.get('link') or item_dict.get('url') or "#")
                     except:
-                        # Try to extract title using regex from raw string
+                        # Use regex to extract title from raw string
                         match = re.search(r"'title':\s*'([^']+)'", item)
-                        title = match.group(1) if match else "Market Update"
-                        link = "#"
-                        processed.append({
-                            "title": title,
-                            "link": link,
-                            "publisher": "Unknown",
-                            "sentiment": "⚪ Neutral",
-                            "score": 0.0
-                        })
-                        continue
-                else:
-                    continue
+                        if match:
+                            title = match.group(1)
+                        else:
+                            # Last resort: take first 100 characters
+                            title = item[:100]
 
-                # Extract title
-                title = (item_dict.get('title') or
-                         item_dict.get('content') or
-                         item_dict.get('headline') or
-                         "Market Update")
-
-                # Clean title - remove JSON fragments
-                title = re.sub(r'\{.*?\}', '', str(title))
+                # Clean title
+                title = re.sub(r'\{.*?\}', '', str(title))  # Remove JSON fragments
                 title = re.sub(r'\[.*?\]', '', title)
                 title = title.strip()[:250]
 
-                # Extract link
-                link = "#"
-                for key in ['link', 'url', 'canonicalUrl', 'clickThroughUrl']:
-                    if key in item_dict and isinstance(item_dict[key], str) and item_dict[key].startswith('http'):
-                        link = item_dict[key]
-                        break
+                if len(title) < 10:
+                    title = "Market Update"
 
-                publisher = item_dict.get('publisher', 'Unknown Source')
+                publisher = "Unknown Source"
 
                 sentiment_label, score = self.analyze_sentiment(title)
 
