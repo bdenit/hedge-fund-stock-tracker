@@ -14,6 +14,7 @@ nltk.download('vader_lexicon', quiet=True)
 
 sia = SentimentIntensityAnalyzer()
 
+# Plotly
 try:
     import plotly.express as px
 
@@ -27,7 +28,7 @@ st.title("Hedge Fund Stock Tracker")
 st.markdown("**Professional Multi-Asset Portfolio Intelligence Platform**")
 
 PORTFOLIO_FILE = "hedge_fund_portfolio.json"
-NEWS_API_KEY = "523c8e0c5905413ea50dce4eef9948ec"  # Your key
+NEWS_API_KEY = "523c8e0c5905413ea50dce4eef9948ec"
 
 
 class PortfolioManager:
@@ -90,7 +91,13 @@ class PortfolioManager:
             "daily_change": daily_change
         }
 
-    # ====================== ADVANCED NEWS WITH NEWSAPI ======================
+    def get_sector(self, ticker):
+        try:
+            return yf.Ticker(ticker).info.get('sector', 'Unknown')
+        except:
+            return 'Unknown'
+
+    # ====================== NEWSAPI + SENTIMENT ======================
     def analyze_sentiment(self, text):
         if not text:
             return "⚪ Neutral", 0.0
@@ -104,9 +111,7 @@ class PortfolioManager:
             return "⚪ Neutral", compound
 
     def get_news(self, ticker, limit=5):
-        """Clean news using NewsAPI.org"""
         try:
-            # Search for news about the ticker
             url = f"https://newsapi.org/v2/everything?q={ticker}&apiKey={NEWS_API_KEY}&sortBy=publishedAt&pageSize={limit}"
             response = requests.get(url)
             if response.status_code != 200:
@@ -114,8 +119,8 @@ class PortfolioManager:
                          "score": 0.0}]
 
             articles = response.json().get('articles', [])
-
             processed = []
+
             for article in articles:
                 title = article.get('title', 'Market Update')
                 link = article.get('url', '#')
@@ -188,6 +193,48 @@ with tab1:
 
     else:
         st.info("Portfolio is empty.")
+
+with tab2:
+    st.header("Import from SelfWealth")
+    uploaded = st.file_uploader("Upload SelfWealth Portfolio Statement CSV", type="csv")
+    if uploaded and st.button("Import CSV"):
+        st.info("Import function ready (add your improved importer if needed)")
+
+with tab3:
+    st.header("Edit Positions")
+    if pm.portfolio:
+        edit_df = pd.DataFrame([{
+            "ticker": p["ticker"],
+            "name": p.get("name", ""),
+            "shares": p["shares"],
+            "avg_cost": p["avg_cost"]
+        } for p in pm.portfolio])
+
+        edited = st.data_editor(edit_df, use_container_width=True, hide_index=True)
+        if st.button("Save Changes"):
+            pm.portfolio = edited.to_dict('records')
+            pm.save_all()
+            st.success("Changes saved!")
+            st.rerun()
+
+with tab4:
+    st.header("Dividends & 12-Month Forecast")
+    if pm.portfolio:
+        forecast_data = []
+        total_forecast = 0.0
+        for pos in pm.portfolio:
+            annual = 0.0  # Expand with full dividend logic later
+            income = pos["shares"] * annual
+            total_forecast += income
+            forecast_data.append({
+                "Ticker": pos["ticker"],
+                "Shares": round(pos["shares"], 4),
+                "Est 12M Income": round(income, 2)
+            })
+        st.dataframe(pd.DataFrame(forecast_data), use_container_width=True, hide_index=True)
+        st.metric("Total Expected Dividend Income (Next 12 Months)", f"${total_forecast:,.2f}")
+    else:
+        st.info("No holdings yet.")
 
 with tab5:
     st.header("📰 News & Sentiment Analysis")
