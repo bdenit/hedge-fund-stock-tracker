@@ -1,125 +1,33 @@
-import streamlit as st
-import yfinance as yf
-import pandas as pd
-import json
-import os
-import requests
-from datetime import datetime, timedelta
-import re
-
-# VADER Sentiment
-from nltk.sentiment.vader import SentimentIntensityAnalyzer
-import nltk
-
-nltk.download('vader_lexicon', quiet=True)
-
-sia = SentimentIntensityAnalyzer()
-
-st.set_page_config(page_title="Hedge Fund Stock Tracker", layout="wide", page_icon="📈")
-
-st.title("Hedge Fund Stock Tracker")
-st.markdown("**Professional Multi-Asset Portfolio Intelligence Platform**")
-
-PORTFOLIO_FILE = "hedge_fund_portfolio.json"
-FINNHUB_API_KEY = "YOUR_FINNHUB_API_KEY_HERE"  # ←←← REPLACE WITH YOUR KEY
-
-# In-memory cache (30 minutes)
-news_cache = {}
+# ====================== IMPROVED YFINANCE FALLBACK ======================
+def analyze_sentiment(self, text):
+    if not text:
+        return "⚪ Neutral", 0.0
+    scores = sia.polarity_scores(str(text))
+    compound = scores['compound']
+    if compound >= 0.15:
+        return "🟢 Positive", compound
+    elif compound <= -0.15:
+        return "🔴 Negative", compound
+    else:
+        return "⚪ Neutral", compound
 
 
-class PortfolioManager:
-    def __init__(self):
-        self.portfolio = self.load_portfolio()
+def get_news(self, ticker, limit=6):
+    """Finnhub primary (if key provided) + heavily cleaned yfinance fallback"""
+    cache_key = ticker
+    now = datetime.now()
 
-    def load_portfolio(self):
-        if os.path.exists(PORTFOLIO_FILE):
-            try:
-                with open(PORTFOLIO_FILE, 'r') as f:
-                    data = json.load(f)
-                    return data.get("open_positions", [])
-            except:
-                return []
-        return []
+    if cache_key in news_cache:
+        cached_time, cached_news = news_cache[cache_key]
+        if now - cached_time < timedelta(minutes=30):
+            return cached_news
 
-    def save_all(self):
-        with open(PORTFOLIO_FILE, 'w') as f:
-            json.dump({"open_positions": self.portfolio}, f, indent=2)
-
-    def get_current_price(self, ticker):
+    # Try Finnhub if key is set (replace with your real key)
+    if FINNHUB_API_KEY and FINNHUB_API_KEY != "d7q3ug9r01qosaaqhtg0d7q3ug9r01qosaaqhtgg":
         try:
-            stock = yf.Ticker(ticker)
-            info = stock.info
-            for key in ['currentPrice', 'regularMarketPrice', 'previousClose', 'lastPrice']:
-                if info.get(key) is not None:
-                    return float(info.get(key))
-            hist = stock.history(period="5d")
-            if not hist.empty:
-                return float(hist['Close'].iloc[-1])
-            return None
-        except:
-            return None
-
-    def get_daily_change(self, ticker):
-        try:
-            stock = yf.Ticker(ticker)
-            hist = stock.history(period="2d")
-            if len(hist) >= 2:
-                change = ((hist['Close'].iloc[-1] - hist['Close'].iloc[-2]) / hist['Close'].iloc[-2]) * 100
-                return round(change, 2)
-            return None
-        except:
-            return None
-
-    def calculate_pnl(self, position):
-        price = self.get_current_price(position["ticker"])
-        if price is None:
-            return {"current_price": "N/A", "market_value": "N/A", "unrealized_pnl": "N/A", "daily_change": None}
-
-        market_value = position["shares"] * price
-        cost_basis = position["shares"] * position["avg_cost"]
-        unrealized = market_value - cost_basis
-        daily_change = self.get_daily_change(position["ticker"])
-
-        return {
-            "current_price": round(price, 4),
-            "market_value": round(market_value, 2),
-            "unrealized_pnl": round(unrealized, 2),
-            "daily_change": daily_change
-        }
-
-    # ====================== FINNHUB + YFINANCE FALLBACK ======================
-    def analyze_sentiment(self, text):
-        if not text:
-            return "⚪ Neutral", 0.0
-        scores = sia.polarity_scores(str(text))
-        compound = scores['compound']
-        if compound >= 0.15:
-            return "🟢 Positive", compound
-        elif compound <= -0.15:
-            return "🔴 Negative", compound
-        else:
-            return "⚪ Neutral", compound
-
-    def get_news(self, ticker, limit=6):
-        """Finnhub primary + yfinance fallback with caching"""
-        cache_key = ticker
-        now = datetime.now()
-
-        # Return cached result if still valid
-        if cache_key in news_cache:
-            cached_time, cached_news = news_cache[cache_key]
-            if now - cached_time < timedelta(minutes=30):
-                return cached_news
-
-        # Try Finnhub first (better structured data)
-        try:
-            # Finnhub company-news needs from/to dates (last 30 days)
             from_date = (now - timedelta(days=30)).strftime('%Y-%m-%d')
-            to_date = now.strftime('%Y-%m-%d')
-
-            url = f"https://finnhub.io/api/v1/company-news?symbol={ticker}&from={from_date}&to={to_date}&token={d7q3ug9r01qosaaqhtg0d7q3ug9r01qosaaqhtgg}"
+            url = f"https://finnhub.io/api/v1/company-news?symbol={ticker}&from={from_date}&to={now.strftime('%Y-%m-%d')}&token={FINNHUB_API_KEY}"
             response = requests.get(url, timeout=10)
-
             if response.status_code == 200:
                 articles = response.json()
                 processed = []
@@ -139,115 +47,65 @@ class PortfolioManager:
                     news_cache[cache_key] = (now, processed)
                     return processed
         except:
-            pass  # Fall through to yfinance
-
-        # Fallback: yfinance.news
-        try:
-            stock = yf.Ticker(ticker)
-            raw_news = stock.news[:limit]
-            processed = []
-            for item in raw_news:
-                if isinstance(item, dict):
-                    title = item.get('title') or item.get('content') or "Market Update"
-                    link = item.get('link') or item.get('url') or "#"
-                elif isinstance(item, str):
-                    match = re.search(r"'title':\s*'([^']+)'", item)
-                    title = match.group(1) if match else str(item)[:150]
-                    link = "#"
-                else:
-                    continue
-
-                title = re.sub(r'\{.*?\}', '', str(title)).strip()[:220]
-                if len(title) < 10:
-                    title = "Market Update"
-
-                sentiment_label, score = self.analyze_sentiment(title)
-                processed.append({
-                    "title": title,
-                    "link": link,
-                    "publisher": "Yahoo Finance",
-                    "sentiment": sentiment_label,
-                    "score": round(score, 3)
-                })
-            if processed:
-                news_cache[cache_key] = (now, processed)
-                return processed
-        except:
             pass
 
-        # Final fallback
-        result = [{"title": "No recent news available at this time", "link": "#", "publisher": "System",
-                   "sentiment": "⚪ Neutral", "score": 0.0}]
-        news_cache[cache_key] = (now, result)
-        return result
+    # Strong yfinance fallback with aggressive cleaning
+    try:
+        stock = yf.Ticker(ticker)
+        raw_news = stock.news[:limit]
+        processed = []
 
+        for item in raw_news:
+            title = "Market Update"
+            link = "#"
 
-# ====================== Streamlit UI ======================
-pm = PortfolioManager()
+            # Case 1: dict
+            if isinstance(item, dict):
+                title = (item.get('title') or item.get('content') or item.get('headline') or "Market Update")
+                link = (item.get('link') or item.get('url') or item.get('canonicalUrl') or "#")
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "📊 Main Portfolio",
-    "📤 Import CSV",
-    "✏️ Edit Positions",
-    "📈 Dividends & Forecast",
-    "📰 News & Sentiment"
-])
+            # Case 2: string (the messy case you're seeing)
+            elif isinstance(item, str):
+                # Try regex for title
+                match = re.search(r"'title':\s*'([^']+)'", item)
+                if match:
+                    title = match.group(1)
+                else:
+                    # Try to find any sentence-like text
+                    match = re.search(r'([A-Z][^.!?]{30,250}[.!?])', item)
+                    if match:
+                        title = match.group(1)
+                    else:
+                        title = item[:180]  # take first chunk
 
-with tab1:
-    st.header("Portfolio Overview")
-    if st.button("🔄 Refresh All Data"):
-        st.rerun()
+            # Final cleaning
+            title = re.sub(r'\{.*?\}', '', str(title))  # remove JSON fragments
+            title = re.sub(r'\[.*?\]', '', title)
+            title = re.sub(r'provider.*?:', '', title, flags=re.I)
+            title = title.strip()[:220]
 
-    if pm.portfolio:
-        data = []
-        total_mv = 0.0
-        total_unreal = 0.0
+            if len(title) < 15:
+                title = "Market Update"
 
-        for pos in pm.portfolio:
-            pnl = pm.calculate_pnl(pos)
-            mv = pnl["market_value"] if isinstance(pnl["market_value"], (int, float)) else 0
-            total_mv += mv
-            total_unreal += pnl["unrealized_pnl"] if isinstance(pnl["unrealized_pnl"], (int, float)) else 0
+            sentiment_label, score = self.analyze_sentiment(title)
 
-            data.append({
-                "Ticker": pos["ticker"],
-                "Name": pos.get("name", ""),
-                "Shares": round(pos["shares"], 4),
-                "Avg Cost": round(pos.get("avg_cost", 0), 4),
-                "Current Price": pnl["current_price"],
-                "Market Value": pnl["market_value"],
-                "Unrealized P&L": pnl["unrealized_pnl"]
+            processed.append({
+                "title": title,
+                "link": link,
+                "publisher": "Yahoo Finance",
+                "sentiment": sentiment_label,
+                "score": round(score, 3)
             })
 
-        st.dataframe(pd.DataFrame(data), use_container_width=True, hide_index=True)
+        if processed:
+            news_cache[cache_key] = (now, processed)
+            return processed
 
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("Total Portfolio Value", f"${total_mv:,.2f}")
-        with col2:
-            color = "#00ff88" if total_unreal >= 0 else "#ff4444"
-            st.markdown(
-                f"<div style='background-color:#1E1E1E;padding:15px;border-radius:10px;text-align:center'><h4>Unrealized P&L</h4><h2 style='color:{color}'>${total_unreal:,.2f}</h2></div>",
-                unsafe_allow_html=True)
+    except Exception as e:
+        st.error(f"yfinance error: {str(e)[:100]}")
 
-    else:
-        st.info("Portfolio is empty.")
-
-with tab5:
-    st.header("📰 News & Sentiment Analysis")
-    if st.button("🔄 Refresh All News"):
-        news_cache.clear()
-        st.rerun()
-
-    if pm.portfolio:
-        for pos in pm.portfolio:
-            with st.expander(f"**{pos['ticker']}** - Latest News"):
-                news_items = pm.get_news(pos["ticker"], limit=6)
-                for item in news_items:
-                    st.markdown(f"**[{item['title']}]({item['link']})**")
-                    st.caption(f"{item['publisher']} • {item['sentiment']} (Score: {item['score']})")
-                    st.divider()
-    else:
-        st.info("Add holdings to see news and sentiment analysis.")
-
-st.sidebar.info("News: Finnhub → yfinance fallback | Cached 30 min")
+    # Ultimate fallback
+    result = [{"title": "No recent news available", "link": "#", "publisher": "System", "sentiment": "⚪ Neutral",
+               "score": 0.0}]
+    news_cache[cache_key] = (now, result)
+    return result
