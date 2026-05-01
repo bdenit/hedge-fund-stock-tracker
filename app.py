@@ -109,7 +109,7 @@ class PortfolioManager:
                 return cached_news
 
         # 1. Try Finnhub (cleaner data)
-        if FINNHUB_API_KEY and FINNHUB_API_KEY != "d7q3ug9r01qosaaqhtg0d7q3ug9r01qosaaqhtgg":
+        if FINNHUB_API_KEY and FINNHUB_API_KEY != "d7q4cjpr01qosaaqj7lgd7q4cjpr01qosaaqj7m0":
             try:
                 from_date = (now - timedelta(days=30)).strftime('%Y-%m-%d')
                 url = f"https://finnhub.io/api/v1/company-news?symbol={ticker}&from={from_date}&to={now.strftime('%Y-%m-%d')}&token={FINNHUB_API_KEY}"
