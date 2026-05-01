@@ -5,7 +5,7 @@ import json
 import os
 from datetime import datetime
 
-# VADER for advanced sentiment analysis
+# VADER Sentiment
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 import nltk
 
@@ -13,7 +13,6 @@ nltk.download('vader_lexicon', quiet=True)
 
 sia = SentimentIntensityAnalyzer()
 
-# Plotly for charts
 try:
     import plotly.express as px
 
@@ -89,12 +88,6 @@ class PortfolioManager:
             "daily_change": daily_change
         }
 
-    def get_sector(self, ticker):
-        try:
-            return yf.Ticker(ticker).info.get('sector', 'Unknown')
-        except:
-            return 'Unknown'
-
     # ====================== ADVANCED NEWS + SENTIMENT ======================
     def analyze_sentiment(self, text):
         if not text:
@@ -109,7 +102,7 @@ class PortfolioManager:
             return "⚪ Neutral", compound
 
     def get_news(self, ticker, limit=5):
-        """Robust news extraction with better fallback"""
+        """Clean and robust news extraction"""
         try:
             stock = yf.Ticker(ticker)
             news_list = stock.news[:limit]
@@ -119,24 +112,30 @@ class PortfolioManager:
                 if not isinstance(item, dict):
                     continue
 
-                # Robust title extraction
-                title = (item.get('title') or
-                         item.get('content') or
-                         item.get('headline') or
-                         "Market Update")
+                # Extract title with multiple fallbacks
+                title = None
+                if 'title' in item and item['title']:
+                    title = item['title']
+                elif 'content' in item and item['content']:
+                    title = item['content']
+                elif 'headline' in item and item['headline']:
+                    title = item['headline']
+                else:
+                    title = "Market Update"
 
-                # Robust link extraction
-                link = (item.get('link') or
-                        item.get('url') or
-                        item.get('canonicalUrl') or
-                        "#")
+                # Extract link with multiple fallbacks
+                link = "#"
+                for key in ['link', 'url', 'canonicalUrl', 'clickThroughUrl']:
+                    if key in item and item[key]:
+                        link = item[key]
+                        break
 
                 publisher = item.get('publisher', 'Unknown Source')
 
                 sentiment_label, score = self.analyze_sentiment(title)
 
                 processed.append({
-                    "title": str(title).strip(),
+                    "title": str(title).strip()[:200],  # Limit length
                     "link": link,
                     "publisher": publisher,
                     "sentiment": sentiment_label,
@@ -150,10 +149,9 @@ class PortfolioManager:
                      "sentiment": "⚪ Neutral", "score": 0.0}]
 
 
-# ====================== Initialize ======================
+# ====================== Streamlit UI ======================
 pm = PortfolioManager()
 
-# ====================== Tabs ======================
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📊 Main Portfolio",
     "📤 Import CSV",
@@ -200,49 +198,7 @@ with tab1:
                 unsafe_allow_html=True)
 
     else:
-        st.info("Portfolio is empty. Import from SelfWealth to begin.")
-
-with tab2:
-    st.header("Import from SelfWealth")
-    uploaded = st.file_uploader("Upload SelfWealth Portfolio Statement CSV", type="csv")
-    if uploaded and st.button("Import CSV"):
-        st.info("Import function ready (add your improved importer if needed)")
-
-with tab3:
-    st.header("Edit Positions")
-    if pm.portfolio:
-        edit_df = pd.DataFrame([{
-            "ticker": p["ticker"],
-            "name": p.get("name", ""),
-            "shares": p["shares"],
-            "avg_cost": p["avg_cost"]
-        } for p in pm.portfolio])
-
-        edited = st.data_editor(edit_df, use_container_width=True, hide_index=True)
-        if st.button("Save Changes"):
-            pm.portfolio = edited.to_dict('records')
-            pm.save_all()
-            st.success("Changes saved!")
-            st.rerun()
-
-with tab4:
-    st.header("Dividends & 12-Month Forecast")
-    if pm.portfolio:
-        forecast_data = []
-        total_forecast = 0.0
-        for pos in pm.portfolio:
-            annual = 0.0  # Expand later with full dividend logic
-            income = pos["shares"] * annual
-            total_forecast += income
-            forecast_data.append({
-                "Ticker": pos["ticker"],
-                "Shares": round(pos["shares"], 4),
-                "Est 12M Income": round(income, 2)
-            })
-        st.dataframe(pd.DataFrame(forecast_data), use_container_width=True, hide_index=True)
-        st.metric("Total Expected Dividend Income (Next 12 Months)", f"${total_forecast:,.2f}")
-    else:
-        st.info("No holdings yet.")
+        st.info("Portfolio is empty.")
 
 with tab5:
     st.header("📰 News & Sentiment Analysis")
