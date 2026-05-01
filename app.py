@@ -103,37 +103,47 @@ class PortfolioManager:
             return "⚪ Neutral", compound
 
     def get_news(self, ticker, limit=5):
-        """Final robust news extraction"""
+        """Final robust news extraction with JSON parsing fallback"""
         try:
             stock = yf.Ticker(ticker)
             raw_news = stock.news[:limit]
             processed = []
 
             for item in raw_news:
-                # Handle string (JSON string) case
+                # If item is a string (JSON string), try to parse it
                 if isinstance(item, str):
                     try:
                         item = json.loads(item)
                     except:
+                        # If parsing fails, try to extract title from the string
+                        match = re.search(r"'title':\s*'([^']+)'", item)
+                        if match:
+                            title = match.group(1)
+                        else:
+                            title = "Market Update"
+                        link = "#"
+                        processed.append({
+                            "title": title,
+                            "link": link,
+                            "publisher": "Unknown",
+                            "sentiment": "⚪ Neutral",
+                            "score": 0.0
+                        })
                         continue
 
                 if not isinstance(item, dict):
                     continue
 
-                # Extract title - multiple possible keys
-                title = None
-                for key in ['title', 'content', 'headline', 'summary']:
-                    if key in item and item[key]:
-                        title = item[key]
-                        break
+                # Extract title
+                title = (item.get('title') or
+                         item.get('content') or
+                         item.get('headline') or
+                         "Market Update")
 
-                if not title:
-                    title = "Market Update"
-
-                # Clean title - remove JSON fragments and long metadata
+                # Clean title - remove JSON fragments
                 title = re.sub(r'\{.*?\}', '', str(title))
                 title = re.sub(r'\[.*?\]', '', title)
-                title = title.strip()[:200]
+                title = title.strip()[:250]
 
                 # Extract link
                 link = "#"
@@ -157,7 +167,6 @@ class PortfolioManager:
             return processed if processed else [
                 {"title": "No recent news available", "link": "#", "publisher": "System", "sentiment": "⚪ Neutral",
                  "score": 0.0}]
-
         except Exception:
             return [{"title": "Unable to fetch news at this time", "link": "#", "publisher": "System",
                      "sentiment": "⚪ Neutral", "score": 0.0}]
