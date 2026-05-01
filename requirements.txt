@@ -4,5 +4,4 @@ pandas
 openpyxl
 plotly
 nltk
-os
 json
