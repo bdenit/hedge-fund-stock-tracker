@@ -14,7 +14,6 @@ nltk.download('vader_lexicon', quiet=True)
 
 sia = SentimentIntensityAnalyzer()
 
-# Plotly
 try:
     import plotly.express as px
 
@@ -97,7 +96,7 @@ class PortfolioManager:
         except:
             return 'Unknown'
 
-    # ====================== NEWSAPI + SENTIMENT ======================
+    # ====================== IMPROVED NEWS SEARCH ======================
     def analyze_sentiment(self, text):
         if not text:
             return "⚪ Neutral", 0.0
@@ -111,8 +110,16 @@ class PortfolioManager:
             return "⚪ Neutral", compound
 
     def get_news(self, ticker, limit=5):
+        """Improved news search using both ticker and company name"""
         try:
-            url = f"https://newsapi.org/v2/everything?q={ticker}&apiKey={NEWS_API_KEY}&sortBy=publishedAt&pageSize={limit}"
+            # Get company name for better search
+            stock = yf.Ticker(ticker)
+            company_name = stock.info.get('shortName') or stock.info.get('longName') or ticker
+
+            # Search using both ticker and company name
+            query = f"{ticker} OR {company_name}"
+            url = f"https://newsapi.org/v2/everything?q={query}&apiKey={NEWS_API_KEY}&sortBy=publishedAt&pageSize={limit}&language=en"
+
             response = requests.get(url)
             if response.status_code != 200:
                 return [{"title": "Unable to fetch news", "link": "#", "publisher": "System", "sentiment": "⚪ Neutral",
@@ -136,8 +143,8 @@ class PortfolioManager:
                     "score": round(score, 3)
                 })
             return processed if processed else [
-                {"title": "No recent news available", "link": "#", "publisher": "System", "sentiment": "⚪ Neutral",
-                 "score": 0.0}]
+                {"title": "No major news in the last 30 days", "link": "#", "publisher": "System",
+                 "sentiment": "⚪ Neutral", "score": 0.0}]
         except Exception:
             return [{"title": "Unable to fetch news at this time", "link": "#", "publisher": "System",
                      "sentiment": "⚪ Neutral", "score": 0.0}]
@@ -193,48 +200,6 @@ with tab1:
 
     else:
         st.info("Portfolio is empty.")
-
-with tab2:
-    st.header("Import from SelfWealth")
-    uploaded = st.file_uploader("Upload SelfWealth Portfolio Statement CSV", type="csv")
-    if uploaded and st.button("Import CSV"):
-        st.info("Import function ready (add your improved importer if needed)")
-
-with tab3:
-    st.header("Edit Positions")
-    if pm.portfolio:
-        edit_df = pd.DataFrame([{
-            "ticker": p["ticker"],
-            "name": p.get("name", ""),
-            "shares": p["shares"],
-            "avg_cost": p["avg_cost"]
-        } for p in pm.portfolio])
-
-        edited = st.data_editor(edit_df, use_container_width=True, hide_index=True)
-        if st.button("Save Changes"):
-            pm.portfolio = edited.to_dict('records')
-            pm.save_all()
-            st.success("Changes saved!")
-            st.rerun()
-
-with tab4:
-    st.header("Dividends & 12-Month Forecast")
-    if pm.portfolio:
-        forecast_data = []
-        total_forecast = 0.0
-        for pos in pm.portfolio:
-            annual = 0.0  # Expand with full dividend logic later
-            income = pos["shares"] * annual
-            total_forecast += income
-            forecast_data.append({
-                "Ticker": pos["ticker"],
-                "Shares": round(pos["shares"], 4),
-                "Est 12M Income": round(income, 2)
-            })
-        st.dataframe(pd.DataFrame(forecast_data), use_container_width=True, hide_index=True)
-        st.metric("Total Expected Dividend Income (Next 12 Months)", f"${total_forecast:,.2f}")
-    else:
-        st.info("No holdings yet.")
 
 with tab5:
     st.header("📰 News & Sentiment Analysis")
