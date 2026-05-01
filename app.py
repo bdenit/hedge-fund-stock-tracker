@@ -5,14 +5,6 @@ import json
 import os
 from datetime import datetime
 
-# Plotly for charts
-try:
-    import plotly.express as px
-
-    PLOTLY_AVAILABLE = True
-except ImportError:
-    PLOTLY_AVAILABLE = False
-
 # VADER for advanced sentiment analysis
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 import nltk
@@ -20,6 +12,14 @@ import nltk
 nltk.download('vader_lexicon', quiet=True)
 
 sia = SentimentIntensityAnalyzer()
+
+# Plotly for charts
+try:
+    import plotly.express as px
+
+    PLOTLY_AVAILABLE = True
+except ImportError:
+    PLOTLY_AVAILABLE = False
 
 st.set_page_config(page_title="Hedge Fund Stock Tracker", layout="wide", page_icon="📈")
 
@@ -95,13 +95,12 @@ class PortfolioManager:
         except:
             return 'Unknown'
 
-    # ====================== ADVANCED SENTIMENT ANALYSIS ======================
+    # ====================== ADVANCED NEWS + SENTIMENT ======================
     def analyze_sentiment(self, text):
         if not text:
             return "⚪ Neutral", 0.0
-        scores = sia.polarity_scores(text)
+        scores = sia.polarity_scores(str(text))
         compound = scores['compound']
-
         if compound >= 0.15:
             return "🟢 Positive", compound
         elif compound <= -0.15:
@@ -109,40 +108,58 @@ class PortfolioManager:
         else:
             return "⚪ Neutral", compound
 
-    def get_news(self, ticker, limit=6):
+    def get_news(self, ticker, limit=5):
+        """Robust news extraction with better fallback"""
         try:
             stock = yf.Ticker(ticker)
             news_list = stock.news[:limit]
             processed = []
+
             for item in news_list:
-                title = item.get('title', 'No Title')
-                link = item.get('link', '#')
-                publisher = item.get('publisher', 'Unknown')
+                if not isinstance(item, dict):
+                    continue
+
+                # Robust title extraction
+                title = (item.get('title') or
+                         item.get('content') or
+                         item.get('headline') or
+                         "Market Update")
+
+                # Robust link extraction
+                link = (item.get('link') or
+                        item.get('url') or
+                        item.get('canonicalUrl') or
+                        "#")
+
+                publisher = item.get('publisher', 'Unknown Source')
+
                 sentiment_label, score = self.analyze_sentiment(title)
 
                 processed.append({
-                    "title": title,
+                    "title": str(title).strip(),
                     "link": link,
                     "publisher": publisher,
                     "sentiment": sentiment_label,
                     "score": round(score, 3)
                 })
-            return processed
-        except:
-            return []
+            return processed if processed else [
+                {"title": "No recent news available", "link": "#", "publisher": "System", "sentiment": "⚪ Neutral",
+                 "score": 0.0}]
+        except Exception:
+            return [{"title": "Unable to fetch news at this time", "link": "#", "publisher": "System",
+                     "sentiment": "⚪ Neutral", "score": 0.0}]
 
 
 # ====================== Initialize ======================
 pm = PortfolioManager()
 
 # ====================== Tabs ======================
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📊 Main Portfolio",
     "📤 Import CSV",
     "✏️ Edit Positions",
     "📈 Dividends & Forecast",
-    "📰 News & Sentiment",
-    "🌍 Markets & Calendar"
+    "📰 News & Sentiment"
 ])
 
 with tab1:
@@ -154,44 +171,26 @@ with tab1:
         data = []
         total_mv = 0.0
         total_unreal = 0.0
-        winners = []
-        losers = []
-        sector_dict = {}
 
         for pos in pm.portfolio:
             pnl = pm.calculate_pnl(pos)
             mv = pnl["market_value"] if isinstance(pnl["market_value"], (int, float)) else 0
-            unreal = pnl["unrealized_pnl"] if isinstance(pnl["unrealized_pnl"], (int, float)) else 0
             total_mv += mv
-            total_unreal += unreal
-
-            daily_change = pnl.get("daily_change")
-            sector = pm.get_sector(pos["ticker"])
-            sector_dict[sector] = sector_dict.get(sector, 0) + mv
+            total_unreal += pnl["unrealized_pnl"] if isinstance(pnl["unrealized_pnl"], (int, float)) else 0
 
             data.append({
                 "Ticker": pos["ticker"],
                 "Name": pos.get("name", ""),
-                "Sector": sector,
                 "Shares": round(pos["shares"], 4),
                 "Avg Cost": round(pos.get("avg_cost", 0), 4),
                 "Current Price": pnl["current_price"],
                 "Market Value": pnl["market_value"],
-                "Unrealized P&L": pnl["unrealized_pnl"],
-                "Daily Change %": daily_change
+                "Unrealized P&L": pnl["unrealized_pnl"]
             })
 
-            if daily_change is not None:
-                if daily_change > 0:
-                    winners.append((pos["ticker"], daily_change))
-                else:
-                    losers.append((pos["ticker"], daily_change))
+        st.dataframe(pd.DataFrame(data), use_container_width=True, hide_index=True)
 
-        df = pd.DataFrame(data)
-        st.dataframe(df, use_container_width=True, hide_index=True)
-
-        # Summary Metrics
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2 = st.columns(2)
         with col1:
             st.metric("Total Portfolio Value", f"${total_mv:,.2f}")
         with col2:
@@ -199,32 +198,6 @@ with tab1:
             st.markdown(
                 f"<div style='background-color:#1E1E1E;padding:15px;border-radius:10px;text-align:center'><h4>Unrealized P&L</h4><h2 style='color:{color}'>${total_unreal:,.2f}</h2></div>",
                 unsafe_allow_html=True)
-        with col3:
-            overall_return = (total_unreal / (total_mv - total_unreal) * 100) if (total_mv - total_unreal) != 0 else 0
-            st.metric("Overall Return %", f"{overall_return:.2f}%")
-        with col4:
-            st.metric("Holdings", len(pm.portfolio))
-
-        # Top Winners & Losers
-        col1, col2 = st.columns(2)
-        with col1:
-            st.subheader("Top Winners Today")
-            if winners:
-                st.dataframe(
-                    pd.DataFrame(winners, columns=["Ticker", "Daily %"]).sort_values("Daily %", ascending=False).head(
-                        5), hide_index=True)
-        with col2:
-            st.subheader("Top Losers Today")
-            if losers:
-                st.dataframe(pd.DataFrame(losers, columns=["Ticker", "Daily %"]).sort_values("Daily %").head(5),
-                             hide_index=True)
-
-        # Sector Allocation
-        if PLOTLY_AVAILABLE and sector_dict:
-            st.subheader("Sector Allocation")
-            sector_df = pd.DataFrame(list(sector_dict.items()), columns=["Sector", "Value"])
-            fig = px.pie(sector_df, names="Sector", values="Value", title="Portfolio by Sector")
-            st.plotly_chart(fig, use_container_width=True)
 
     else:
         st.info("Portfolio is empty. Import from SelfWealth to begin.")
@@ -258,8 +231,7 @@ with tab4:
         forecast_data = []
         total_forecast = 0.0
         for pos in pm.portfolio:
-            m = {}  # Expand with full dividend logic later
-            annual = 0.0
+            annual = 0.0  # Expand later with full dividend logic
             income = pos["shares"] * annual
             total_forecast += income
             forecast_data.append({
@@ -274,8 +246,9 @@ with tab4:
 
 with tab5:
     st.header("📰 News & Sentiment Analysis")
+
     if pm.portfolio:
-        for pos in pm.portfolio[:10]:
+        for pos in pm.portfolio:
             with st.expander(f"**{pos['ticker']}** - Latest News"):
                 news_items = pm.get_news(pos["ticker"], limit=5)
                 for item in news_items:
@@ -283,40 +256,6 @@ with tab5:
                     st.caption(f"{item['publisher']} • {item['sentiment']} (Score: {item['score']})")
                     st.divider()
     else:
-        st.info("Add holdings to see news and sentiment.")
+        st.info("Add holdings to see news and sentiment analysis.")
 
-with tab6:
-    st.header("🌍 World Markets & Economic Calendar")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.subheader("Precious Metals & Commodities (in AUD)")
-        commodities = {"Gold": "GC=F", "Silver": "SI=F", "Copper": "HG=F", "Platinum": "PL=F"}
-        aud_rate = pm.get_current_price("AUDUSD=X") or 1.0
-
-        comm_data = []
-        for name, symbol in commodities.items():
-            usd_price = pm.get_current_price(symbol)
-            aud_price = usd_price / aud_rate if usd_price else None
-            comm_data.append(
-                {"Commodity": name, "USD Price": usd_price, "AUD Price": round(aud_price, 2) if aud_price else "N/A"})
-        st.dataframe(pd.DataFrame(comm_data), use_container_width=True, hide_index=True)
-
-    with col2:
-        st.subheader("Major World Indices")
-        indices = {"S&P 500": "^GSPC", "Nasdaq": "^IXIC", "Dow Jones": "^DJI", "ASX 200": "^AXJO", "FTSE 100": "^FTSE"}
-        index_data = []
-        for name, symbol in indices.items():
-            price = pm.get_current_price(symbol)
-            index_data.append({"Index": name, "Price": price})
-        st.dataframe(pd.DataFrame(index_data), use_container_width=True, hide_index=True)
-
-    st.subheader("Economic Calendar")
-    calendar_data = [
-        {"Time": "Today 10:30 AM", "Event": "Australia CPI", "Impact": "High"},
-        {"Time": "Tomorrow 8:00 PM", "Event": "FOMC Rate Decision", "Impact": "Very High"},
-    ]
-    st.dataframe(pd.DataFrame(calendar_data), use_container_width=True, hide_index=True)
-
-st.sidebar.info("Data synchronized with console_tracker.py | News + Sentiment powered by yfinance + VADER")
+st.sidebar.info("Data synchronized with console_tracker.py")
