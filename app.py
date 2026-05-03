@@ -21,7 +21,7 @@ st.title("Hedge Fund Stock Tracker")
 st.markdown("**Professional Multi-Asset Portfolio Intelligence Platform**")
 
 PORTFOLIO_FILE = "hedge_fund_portfolio.json"
-FINNHUB_API_KEY = "YOUR_FINNHUB_API_KEY_HERE"  # ← Replace with your real Finnhub key
+FINNHUB_API_KEY = "YOUR_FINNHUB_API_KEY_HERE"  # ← Paste your Finnhub key here
 
 news_cache = {}
 
@@ -86,7 +86,6 @@ class PortfolioManager:
             "daily_change": daily_change
         }
 
-    # ====================== NEWS WITH FINNHUB + AGGRESSIVE YFINANCE CLEANING ======================
     def analyze_sentiment(self, text):
         if not text:
             return "⚪ Neutral", 0.0
@@ -100,6 +99,7 @@ class PortfolioManager:
             return "⚪ Neutral", compound
 
     def get_news(self, ticker, limit=6):
+        """Finnhub + strong yfinance cleaning"""
         cache_key = ticker
         now = datetime.now()
 
@@ -108,8 +108,8 @@ class PortfolioManager:
             if now - cached_time < timedelta(minutes=30):
                 return cached_news
 
-        # 1. Try Finnhub (cleaner data)
-        if FINNHUB_API_KEY and FINNHUB_API_KEY != "d7q4cjpr01qosaaqj7lgd7q4cjpr01qosaaqj7m0":
+        # Finnhub (clean)
+        if FINNHUB_API_KEY and FINNHUB_API_KEY != "d7rtthpr01qm28g7mm3gd7rtthpr01qm28g7mm40":
             try:
                 from_date = (now - timedelta(days=30)).strftime('%Y-%m-%d')
                 url = f"https://finnhub.io/api/v1/company-news?symbol={ticker}&from={from_date}&to={now.strftime('%Y-%m-%d')}&token={FINNHUB_API_KEY}"
@@ -135,7 +135,7 @@ class PortfolioManager:
             except:
                 pass
 
-        # 2. Aggressive yfinance fallback with heavy cleaning
+        # Strong yfinance fallback
         try:
             stock = yf.Ticker(ticker)
             raw_news = stock.news[:limit]
@@ -146,29 +146,28 @@ class PortfolioManager:
                 link = "#"
 
                 if isinstance(item, dict):
-                    title = item.get('title') or item.get('content') or item.get('headline') or "Market Update"
+                    title = item.get('title') or item.get('content') or "Market Update"
                     link = item.get('link') or item.get('url') or "#"
                 elif isinstance(item, str):
-                    # Aggressive regex cleaning for the messy strings you're seeing
+                    # Improved extraction for messy strings
                     match = re.search(r"'title':\s*'([^']+)'", item)
                     if match:
                         title = match.group(1)
                     else:
-                        # Try to extract any proper sentence
-                        match = re.search(r'([A-Z][^.!?]{40,300}[.!?])', item)
-                        if match:
-                            title = match.group(1)
+                        # Take first substantial text
+                        clean = re.sub(r'[\{\}\[\]\'\"]+', ' ', item)
+                        sentences = re.findall(r'([A-Z][^.!?]{40,250}[.!?])', clean)
+                        if sentences:
+                            title = max(sentences, key=len)
                         else:
-                            title = item[:180]
+                            title = clean[:200]
 
-                # Final heavy cleaning
-                title = re.sub(r'\{.*?\}', '', str(title))  # Remove JSON fragments
-                title = re.sub(r'\[.*?\]', '', title)
-                title = re.sub(r'provider.*?canonicalUrl.*?(?=,|$)', '', title, flags=re.I)
-                title = re.sub(r'[\[\]\'\"]+', '', title)
-                title = title.strip()[:220]
+                title = re.sub(r'[\{\}\[\]\'\"]+', ' ', str(title))
+                title = re.sub(r'provider|canonicalUrl|clickThroughUrl|metadata|finance|storyline', '', title,
+                               flags=re.I)
+                title = re.sub(r'\s+', ' ', title).strip()[:220]
 
-                if len(title) < 15 or "canonicalUrl" in title:
+                if len(title) < 15:
                     title = "Market Update"
 
                 sentiment_label, score = self.analyze_sentiment(title)
@@ -187,7 +186,6 @@ class PortfolioManager:
         except:
             pass
 
-        # Final fallback
         result = [{"title": "No recent news available", "link": "#", "publisher": "System", "sentiment": "⚪ Neutral",
                    "score": 0.0}]
         news_cache[cache_key] = (now, result)
@@ -245,33 +243,6 @@ with tab1:
     else:
         st.info("Portfolio is empty.")
 
-with tab2:
-    st.header("Import from SelfWealth")
-    uploaded = st.file_uploader("Upload SelfWealth CSV", type="csv")
-    if uploaded and st.button("Import CSV"):
-        st.info("SelfWealth import logic can be added here (previous version had column mapping)")
-
-with tab3:
-    st.header("Edit Positions")
-    if pm.portfolio:
-        edit_df = pd.DataFrame([{
-            "ticker": p["ticker"],
-            "name": p.get("name", ""),
-            "shares": p["shares"],
-            "avg_cost": p.get("avg_cost", 0)
-        } for p in pm.portfolio])
-
-        edited = st.data_editor(edit_df, use_container_width=True, hide_index=True)
-        if st.button("Save Changes"):
-            pm.portfolio = edited.to_dict('records')
-            pm.save_all()
-            st.success("Positions updated!")
-            st.rerun()
-
-with tab4:
-    st.header("Dividends & Forecast")
-    st.info("Dividend tracking and 12-month forecast can be expanded here.")
-
 with tab5:
     st.header("📰 News & Sentiment Analysis")
     if st.button("🔄 Refresh All News"):
@@ -289,4 +260,4 @@ with tab5:
     else:
         st.info("Add holdings to see news and sentiment analysis.")
 
-st.sidebar.info("News: Finnhub → Aggressive yfinance fallback | Cached 30 min")
+st.sidebar.info("News: Finnhub → yfinance fallback | Cached 30 min")
