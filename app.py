@@ -14,13 +14,13 @@ nltk.download('vader_lexicon', quiet=True)
 
 sia = SentimentIntensityAnalyzer()
 
-st.set_page_config(page_title="Stock Tracker", layout="wide", page_icon="📈")
+st.set_page_config(page_title="Hedge Fund Stock Tracker", layout="wide", page_icon="📈")
 
-st.title("Stock Tracker")
+st.title("Hedge Fund Stock Tracker")
 st.markdown("**Professional Multi-Asset Portfolio Intelligence Platform**")
 
 PORTFOLIO_FILE = "hedge_fund_portfolio.json"
-NEWSDATA_API_KEY = "pub_09a23ea508f34a18aae10a21b06be8d9"  # ← Paste your NewsData.io key here
+ALPHA_VANTAGE_KEY = "AQ1YPNZ3B7CUMNP5"  # ← Paste your Alpha Vantage key here
 
 news_cache = {}
 
@@ -98,7 +98,7 @@ class PortfolioManager:
             return "⚪ Neutral", compound
 
     def get_news(self, ticker, limit=8):
-        """NewsData.io Primary"""
+        """Alpha Vantage NEWS_SENTIMENT"""
         cache_key = ticker
         now = datetime.now()
 
@@ -108,21 +108,21 @@ class PortfolioManager:
                 return cached_news
 
         try:
-            # Search using ticker
-            url = f"https://newsdata.io/api/1/news?apikey={NEWSDATA_API_KEY}&q={ticker}&language=en&size={limit}"
+            url = f"https://www.alphavantage.co/query?function=NEWS_SENTIMENT&tickers={ticker}&apikey={ALPHA_VANTAGE_KEY}&limit={limit}"
             response = requests.get(url, timeout=10)
 
             if response.status_code != 200:
-                return [{"title": f"API Error {response.status_code}", "link": "#", "publisher": "System",
+                return [{"title": f"Alpha Vantage Error {response.status_code}", "link": "#", "publisher": "System",
                          "sentiment": "⚪ Neutral", "score": 0.0}]
 
-            articles = response.json().get('results', [])
+            data = response.json()
+            feed = data.get('feed', [])
             processed = []
 
-            for article in articles[:limit]:
+            for article in feed[:limit]:
                 title = article.get('title', 'Market Update')
-                link = article.get('link', '#')
-                publisher = article.get('source_id', 'NewsData.io').upper()
+                link = article.get('url', '#')
+                publisher = article.get('source', 'Alpha Vantage')
 
                 sentiment_label, score = self.analyze_sentiment(title)
 
@@ -135,8 +135,8 @@ class PortfolioManager:
                 })
 
             result = processed if processed else [
-                {"title": "No major news found in the last period", "link": "#", "publisher": "System",
-                 "sentiment": "⚪ Neutral", "score": 0.0}]
+                {"title": "No recent news available", "link": "#", "publisher": "System", "sentiment": "⚪ Neutral",
+                 "score": 0.0}]
             news_cache[cache_key] = (now, result)
             return result
 
@@ -213,4 +213,4 @@ with tab5:
     else:
         st.info("Add holdings to see news and sentiment analysis.")
 
-st.sidebar.info("News powered by NewsData.io | Cached 30 min")
+st.sidebar.info("News powered by Alpha Vantage | Cached 30 min")
