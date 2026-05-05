@@ -107,9 +107,7 @@ class PortfolioManager:
             if now - cached_time < timedelta(minutes=30):
                 return cached_news
 
- #Try find Finnhub key
-        if FINNHUB_API_KEY and FINNHUB_API_KEY != "d7rtthpr01qm28g7mm3gd7rtthpr01qm28g7mm40":
-            try:
+        try:
             from_date = (now - timedelta(days=30)).strftime('%Y-%m-%d')
             url = f"https://finnhub.io/api/v1/company-news?symbol={ticker}&from={from_date}&to={now.strftime('%Y-%m-%d')}&token={FINNHUB_API_KEY}"
 
