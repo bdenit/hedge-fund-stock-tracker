@@ -14,7 +14,7 @@ nltk.download('vader_lexicon', quiet=True)
 
 sia = SentimentIntensityAnalyzer()
 
-st.set_page_config(page_title="Hedge Fund Stock Tracker", layout="wide", page_icon="📈")
+st.set_page_config(page_title="Stock Tracker", layout="wide", page_icon="📈")
 
 st.title("Hedge Fund Stock Tracker")
 st.markdown("**Professional Multi-Asset Portfolio Intelligence Platform**")
