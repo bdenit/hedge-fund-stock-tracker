@@ -20,7 +20,7 @@ st.title("Hedge Fund Stock Tracker")
 st.markdown("**Professional Multi-Asset Portfolio Intelligence Platform**")
 
 PORTFOLIO_FILE = "hedge_fund_portfolio.json"
-FINNHUB_API_KEY = "d7smpahr01qorsvja1u0d7smpahr01qorsvja1ug"  # Your key added
+FINNHUB_API_KEY = "d7smu71r01qorsvjagi0d7smu71r01qorsvjagig"  # Your key added
 
 news_cache = {}
 
