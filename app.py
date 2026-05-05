@@ -20,7 +20,7 @@ st.title("Hedge Fund Stock Tracker")
 st.markdown("**Professional Multi-Asset Portfolio Intelligence Platform**")
 
 PORTFOLIO_FILE = "hedge_fund_portfolio.json"
-FINNHUB_API_KEY = "d7smp8pr01qorsvja1mgd7smp8pr01qorsvja1n0" # ← Paste your exact key here
+FINNHUB_API_KEY = "d7smpahr01qorsvja1u0d7smpahr01qorsvja1ug"  # Your key added
 
 news_cache = {}
 
@@ -98,7 +98,7 @@ class PortfolioManager:
             return "⚪ Neutral", compound
 
     def get_news(self, ticker, limit=8):
-        """Finnhub Only with clear error messages"""
+        """Finnhub Only"""
         cache_key = ticker
         now = datetime.now()
 
@@ -113,15 +113,10 @@ class PortfolioManager:
 
             response = requests.get(url, timeout=10)
 
-            if response.status_code == 403:
-                return [{"title": "Finnhub API Error 403 - Check your API key is correct and activated", "link": "#",
-                         "publisher": "System", "sentiment": "⚪ Neutral", "score": 0.0}]
-            if response.status_code == 429:
-                return [{"title": "Finnhub rate limit reached. Try again shortly.", "link": "#", "publisher": "System",
-                         "sentiment": "⚪ Neutral", "score": 0.0}]
             if response.status_code != 200:
-                return [{"title": f"Unable to fetch news (Error {response.status_code})", "link": "#",
-                         "publisher": "System", "sentiment": "⚪ Neutral", "score": 0.0}]
+                return [
+                    {"title": f"Finnhub Error {response.status_code} - Check API key or try again later", "link": "#",
+                     "publisher": "System", "sentiment": "⚪ Neutral", "score": 0.0}]
 
             articles = response.json()
             processed = []
@@ -148,11 +143,8 @@ class PortfolioManager:
             return result
 
         except Exception as e:
-            result = [
-                {"title": f"News error: {str(e)[:100]}", "link": "#", "publisher": "System", "sentiment": "⚪ Neutral",
-                 "score": 0.0}]
-            news_cache[cache_key] = (now, result)
-            return result
+            return [{"title": f"Error fetching news: {str(e)[:80]}", "link": "#", "publisher": "System",
+                     "sentiment": "⚪ Neutral", "score": 0.0}]
 
 
 # ====================== Streamlit UI ======================
