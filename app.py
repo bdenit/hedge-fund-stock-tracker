@@ -20,7 +20,7 @@ st.title("Hedge Fund Stock Tracker")
 st.markdown("**Professional Multi-Asset Portfolio Intelligence Platform**")
 
 PORTFOLIO_FILE = "hedge_fund_portfolio.json"
-FINNHUB_API_KEY = "d7smu71r01qorsvjagi0d7smu71r01qorsvjagig"  # Your key added
+NEWSDATA_API_KEY = "pub_09a23ea508f34a18aae10a21b06be8d9"  # ← Paste your NewsData.io key here
 
 news_cache = {}
 
@@ -98,7 +98,7 @@ class PortfolioManager:
             return "⚪ Neutral", compound
 
     def get_news(self, ticker, limit=8):
-        """Finnhub Only"""
+        """NewsData.io Primary"""
         cache_key = ticker
         now = datetime.now()
 
@@ -108,23 +108,21 @@ class PortfolioManager:
                 return cached_news
 
         try:
-            from_date = (now - timedelta(days=30)).strftime('%Y-%m-%d')
-            url = f"https://finnhub.io/api/v1/company-news?symbol={ticker}&from={from_date}&to={now.strftime('%Y-%m-%d')}&token={FINNHUB_API_KEY}"
-
+            # Search using ticker
+            url = f"https://newsdata.io/api/1/news?apikey={NEWSDATA_API_KEY}&q={ticker}&language=en&size={limit}"
             response = requests.get(url, timeout=10)
 
             if response.status_code != 200:
-                return [
-                    {"title": f"Finnhub Error {response.status_code} - Check API key or try again later", "link": "#",
-                     "publisher": "System", "sentiment": "⚪ Neutral", "score": 0.0}]
+                return [{"title": f"API Error {response.status_code}", "link": "#", "publisher": "System",
+                         "sentiment": "⚪ Neutral", "score": 0.0}]
 
-            articles = response.json()
+            articles = response.json().get('results', [])
             processed = []
 
             for article in articles[:limit]:
-                title = article.get('headline', 'Market Update')
-                link = article.get('url', '#')
-                publisher = article.get('source', 'Finnhub')
+                title = article.get('title', 'Market Update')
+                link = article.get('link', '#')
+                publisher = article.get('source_id', 'NewsData.io').upper()
 
                 sentiment_label, score = self.analyze_sentiment(title)
 
@@ -137,7 +135,7 @@ class PortfolioManager:
                 })
 
             result = processed if processed else [
-                {"title": "No major news found in the last 30 days", "link": "#", "publisher": "System",
+                {"title": "No major news found in the last period", "link": "#", "publisher": "System",
                  "sentiment": "⚪ Neutral", "score": 0.0}]
             news_cache[cache_key] = (now, result)
             return result
@@ -215,4 +213,4 @@ with tab5:
     else:
         st.info("Add holdings to see news and sentiment analysis.")
 
-st.sidebar.info("News powered by Finnhub | Cached 30 min")
+st.sidebar.info("News powered by NewsData.io | Cached 30 min")
