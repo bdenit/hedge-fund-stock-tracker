@@ -3,8 +3,14 @@ import yfinance as yf
 import pandas as pd
 import json
 import os
-import requests
 from datetime import datetime, timedelta
+
+try:
+    import pyasx.data.companies
+
+    PYASX_AVAILABLE = True
+except ImportError:
+    PYASX_AVAILABLE = False
 
 # VADER Sentiment
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
@@ -20,7 +26,6 @@ st.title("Hedge Fund Stock Tracker")
 st.markdown("**Professional Multi-Asset Portfolio Intelligence Platform**")
 
 PORTFOLIO_FILE = "hedge_fund_portfolio.json"
-ALPHA_VANTAGE_KEY = "AQ1YPNZ3B7CUMNP5"  # ← Paste your Alpha Vantage key here
 
 news_cache = {}
 
@@ -97,8 +102,8 @@ class PortfolioManager:
         else:
             return "⚪ Neutral", compound
 
-    def get_news(self, ticker, limit=8):
-        """Alpha Vantage NEWS_SENTIMENT"""
+    def get_news(self, ticker, limit=10):
+        """Use pyasx for ASX announcements"""
         cache_key = ticker
         now = datetime.now()
 
@@ -107,41 +112,38 @@ class PortfolioManager:
             if now - cached_time < timedelta(minutes=30):
                 return cached_news
 
+        if not PYASX_AVAILABLE:
+            return [{"title": "pyasx library not installed. Run: pip install pyasx", "link": "#", "publisher": "System",
+                     "sentiment": "⚪ Neutral", "score": 0.0}]
+
         try:
-            url = f"https://www.alphavantage.co/query?function=NEWS_SENTIMENT&tickers={ticker}&apikey={ALPHA_VANTAGE_KEY}&limit={limit}"
-            response = requests.get(url, timeout=10)
-
-            if response.status_code != 200:
-                return [{"title": f"Alpha Vantage Error {response.status_code}", "link": "#", "publisher": "System",
-                         "sentiment": "⚪ Neutral", "score": 0.0}]
-
-            data = response.json()
-            feed = data.get('feed', [])
+            # Get latest announcements
+            announcements = pyasx.data.companies.get_company_announcements(ticker.replace('.AX', ''))
             processed = []
 
-            for article in feed[:limit]:
-                title = article.get('title', 'Market Update')
-                link = article.get('url', '#')
-                publisher = article.get('source', 'Alpha Vantage')
+            for ann in announcements[:limit]:
+                title = ann.get('title', 'ASX Announcement')
+                link = ann.get('url', '#') if 'url' in ann else f"https://www.asx.com.au/announcements/{ticker}"
+                date = ann.get('date', '')
 
                 sentiment_label, score = self.analyze_sentiment(title)
 
                 processed.append({
-                    "title": title[:250],
+                    "title": f"[{date}] {title}" if date else title,
                     "link": link,
-                    "publisher": publisher,
+                    "publisher": "ASX Announcements",
                     "sentiment": sentiment_label,
                     "score": round(score, 3)
                 })
 
             result = processed if processed else [
-                {"title": "No recent news available", "link": "#", "publisher": "System", "sentiment": "⚪ Neutral",
+                {"title": "No recent announcements found", "link": "#", "publisher": "ASX", "sentiment": "⚪ Neutral",
                  "score": 0.0}]
             news_cache[cache_key] = (now, result)
             return result
 
         except Exception as e:
-            return [{"title": f"Error fetching news: {str(e)[:80]}", "link": "#", "publisher": "System",
+            return [{"title": f"Error loading announcements: {str(e)[:80]}", "link": "#", "publisher": "System",
                      "sentiment": "⚪ Neutral", "score": 0.0}]
 
 
@@ -197,20 +199,20 @@ with tab1:
         st.info("Portfolio is empty.")
 
 with tab5:
-    st.header("📰 News & Sentiment Analysis")
+    st.header("📰 News & Sentiment Analysis (ASX Announcements)")
     if st.button("🔄 Refresh All News"):
         news_cache.clear()
         st.rerun()
 
     if pm.portfolio:
         for pos in pm.portfolio:
-            with st.expander(f"**{pos['ticker']}** - Latest News"):
-                news_items = pm.get_news(pos["ticker"], limit=8)
+            with st.expander(f"**{pos['ticker']}** - Latest ASX Announcements"):
+                news_items = pm.get_news(pos["ticker"], limit=10)
                 for item in news_items:
                     st.markdown(f"**[{item['title']}]({item['link']})**")
                     st.caption(f"{item['publisher']} • {item['sentiment']} (Score: {item['score']})")
                     st.divider()
     else:
-        st.info("Add holdings to see news and sentiment analysis.")
+        st.info("Add holdings to see announcements.")
 
-st.sidebar.info("News powered by Alpha Vantage | Cached 30 min")
+st.sidebar.info("Announcements powered by pyasx (ASX scraping)")
