@@ -20,7 +20,7 @@ st.title("Hedge Fund Stock Tracker")
 st.markdown("**Professional Multi-Asset Portfolio Intelligence Platform**")
 
 PORTFOLIO_FILE = "hedge_fund_portfolio.json"
-FINNHUB_API_KEY = "YOUR_FINNHUB_API_KEY_HERE"  # ← Make sure this is your real key
+FINNHUB_API_KEY = "d7rtthpr01qm28g7mm3gd7rtthpr01qm28g7mm40"  # ← Make sure this is your real key
 
 news_cache = {}
 
@@ -107,6 +107,7 @@ class PortfolioManager:
             if now - cached_time < timedelta(minutes=30):
                 return cached_news
 
+        if FINNHUB_API_KEY and FINNHUB_API_KEY != "d7rtthpr01qm28g7mm3gd7rtthpr01qm28g7mm40":
         try:
             from_date = (now - timedelta(days=30)).strftime('%Y-%m-%d')
             url = f"https://finnhub.io/api/v1/company-news?symbol={ticker}&from={from_date}&to={now.strftime('%Y-%m-%d')}&token={FINNHUB_API_KEY}"
