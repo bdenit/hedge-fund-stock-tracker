@@ -4,4 +4,4 @@ pandas
 openpyxl
 plotly
 nltk
-setuptools
+plotly.express
