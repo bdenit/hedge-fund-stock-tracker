@@ -75,6 +75,16 @@ class PortfolioManager:
         except:
             return None
 
+    def get_dividend_data(stock):
+        url = f'https://finance.yahoo.com/quote/{stock}/dividends?p={stock}'
+        response = requests.get(url)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        dividend_element = soup.find('td', {'class': 'Ta(end) Fw(600) Lh(14px)'})
+        if dividend_element:
+            dividend = dividend_element.text
+        return float(dividend.replace(',', ''))
+        return None
+
     def calculate_pnl(self, position):
         price = self.get_current_price(position["ticker"])
         if price is None:
