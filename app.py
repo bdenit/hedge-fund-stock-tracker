@@ -197,6 +197,9 @@ with tab1:
                               title="Geographic Allocation")
                 st.plotly_chart(fig3, use_container_width=True)
 
+# Initialize the ticker
+ticker = yf.Ticker("AAPL")
+
 # 1. Get current annual dividend rate and yield
 info = ticker.info
 # 'dividendRate' is the annual payout amount
