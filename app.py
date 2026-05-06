@@ -65,25 +65,25 @@ class PortfolioManager:
         except:
             return None
 
+    def get_dividend_yield(self, ticker):
+        """Return dividend yield in %"""
+        try:
+            stock = yf.Ticker(ticker)
+            info = stock.info
+            # Try forward yield first, then trailing
+            yield_pct = info.get('dividendYield') or info.get('trailingAnnualDividendYield')
+            if yield_pct is not None:
+                return round(yield_pct * 100, 2)
+            return None
+        except:
+            return None
+
     def get_ytd_return(self, ticker):
         try:
             stock = yf.Ticker(ticker)
             hist = stock.history(period="ytd")
             if len(hist) > 1:
                 return round(((hist['Close'].iloc[-1] / hist['Close'].iloc[0]) - 1) * 100, 2)
-            return None
-        except:
-            return None
-
-    def get_dividend_yield(self, ticker):
-        """Get trailing or forward dividend yield"""
-        try:
-            stock = yf.Ticker(ticker)
-            info = stock.info
-            # Try forward yield first, then trailing
-            yield_pct = info.get('dividendYield') or info.get('trailingAnnualDividendYield')
-            if yield_pct:
-                return round(yield_pct * 100, 2)
             return None
         except:
             return None
