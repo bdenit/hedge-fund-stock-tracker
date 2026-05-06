@@ -5,12 +5,18 @@ import json
 import os
 import numpy as np
 from datetime import datetime
-import plotly.express as px
 from io import BytesIO
 
-st.set_page_config(page_title="Hedge Fund Stock Tracker", layout="wide", page_icon="📈")
+# Plotly
+try:
+    import plotly.express as px
 
-st.title("Hedge Fund Stock Tracker")
+    PLOTLY_AVAILABLE = True
+except ImportError:
+    PLOTLY_AVAILABLE = False
+st.set_page_config(page_title="Stock Tracker", layout="wide", page_icon="📈")
+
+st.title("Stock Tracker")
 st.markdown("**Professional Multi-Asset Portfolio Intelligence Platform**")
 
 PORTFOLIO_FILE = "hedge_fund_portfolio.json"
