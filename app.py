@@ -197,6 +197,18 @@ with tab1:
                               title="Geographic Allocation")
                 st.plotly_chart(fig3, use_container_width=True)
 
+# 1. Get current annual dividend rate and yield
+info = ticker.info
+# 'dividendRate' is the annual payout amount
+# 'dividendYield' is the percentage yield (e.g., 0.02 for 2%)
+print(f"Annual Dividend Rate: {info.get('dividendRate')}")
+print(f"Dividend Yield: {info.get('dividendYield')}")
+
+# 2. Get history of dividend payments
+# This returns a pandas Series with dates and amounts
+dividends = ticker.dividends
+print(dividends.tail()) # Shows recent payouts
+
 with tab4:
     st.header("📈 Dividends & Forecast")
     if pm.portfolio:
