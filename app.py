@@ -197,6 +197,26 @@ with tab1:
                               title="Geographic Allocation")
                 st.plotly_chart(fig3, use_container_width=True)
 
+with tab4:
+    st.header("📈 Dividends & Forecast")
+    if pm.portfolio:
+        forecast_data = []
+        total_forecast = 0.0
+        for pos in pm.portfolio:
+            # Placeholder dividend yield (can be expanded with real data)
+            est_annual_div = pos["shares"] * 2.5  # Example placeholder
+            total_forecast += est_annual_div
+            forecast_data.append({
+                "Ticker": pos["ticker"],
+                "Shares": round(pos["shares"], 4),
+                "Est Annual Dividend": round(est_annual_div, 2),
+                "Est 12M Income": round(est_annual_div, 2)
+            })
+        st.dataframe(pd.DataFrame(forecast_data), use_container_width=True, hide_index=True)
+        st.metric("Total Expected 12-Month Dividend Income", f"${total_forecast:,.2f}")
+    else:
+        st.info("Add holdings to see dividend forecast.")
+
 with tab5:
     st.header("🌍 Markets & Risk")
 
