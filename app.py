@@ -179,7 +179,7 @@ with tab1:
                 "Current Price": pnl["current_price"],
                 "Market Value": mv,
                 "Daily %": pnl["daily_change"],
-                "Dividend Yield %": dividend_yield if dividend_yield is not None else "N/A",
+                "Dividend Yield": dividend_yield if dividend_yield is not None else "N/A",
                 "Unrealized P&L": pnl["unrealized_pnl"],
                 "Sector": sector,
                 "Industry": industry
