@@ -179,6 +179,7 @@ with tab1:
                 "Unrealized P&L": pnl["unrealized_pnl"],
                 "Sector": sector,
                 "Industry": industry
+                "Dividends": pnl["dividends"],
             })
 
         st.dataframe(pd.DataFrame(data), use_container_width=True, hide_index=True)
