@@ -203,7 +203,7 @@ with tab1:
                 unsafe_allow_html=True)
 
         # Charts
-        if PLOTLY_AVAILABLE:
+        if PLOTLY.express_AVAILABLE:
             col3, col4, col5 = st.columns(3)
             with col3:
                 fig = px.pie(names=list(sector_data.keys()), values=list(sector_data.values()),
