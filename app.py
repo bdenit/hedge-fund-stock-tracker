@@ -75,15 +75,18 @@ class PortfolioManager:
         except:
             return None
 
-    def get_dividend_data(stock):
-        url = f'https://finance.yahoo.com/quote/{stock}/dividends?p={stock}'
-        response = requests.get(url)
-        soup = BeautifulSoup(response.text, 'html.parser')
-        dividend_element = soup.find('td', {'class': 'Ta(end) Fw(600) Lh(14px)'})
-        if dividend_element:
-            dividend = dividend_element.text
-        return float(dividend.replace(',', ''))
-        return None
+    def get_dividend_yield(self, ticker):
+        """Get trailing or forward dividend yield"""
+        try:
+            stock = yf.Ticker(ticker)
+            info = stock.info
+            # Try forward yield first, then trailing
+            yield_pct = info.get('dividendYield') or info.get('trailingAnnualDividendYield')
+            if yield_pct:
+                return round(yield_pct * 100, 2)
+            return None
+        except:
+            return None
 
     def calculate_pnl(self, position):
         price = self.get_current_price(position["ticker"])
