@@ -211,6 +211,23 @@ with tab1:
                               title="Geographic Allocation")
                 st.plotly_chart(fig3, use_container_width=True)
 
+with tab3:
+    st.header("Edit Positions")
+    if pm.portfolio:
+        edit_df = pd.DataFrame([{
+            "ticker": p["ticker"],
+            "name": p.get("name", ""),
+            "shares": p["shares"],
+            "avg_cost": p.get("avg_cost", 0)
+        } for p in pm.portfolio])
+
+        edited = st.data_editor(edit_df, use_container_width=True, hide_index=True)
+        if st.button("💾 Save Changes"):
+            pm.portfolio = edited.to_dict('records')
+            pm.save_all()
+            st.success("Positions saved!")
+            st.rerun()
+
 # Initialize the ticker
 ticker = yf.Ticker("AAPL")
 
