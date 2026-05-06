@@ -211,6 +211,12 @@ with tab1:
                               title="Geographic Allocation")
                 st.plotly_chart(fig3, use_container_width=True)
 
+with tab2:
+    st.header("Import from SelfWealth")
+    uploaded = st.file_uploader("Upload SelfWealth CSV", type="csv")
+    if uploaded and st.button("Import CSV"):
+        st.info("SelfWealth importer can be expanded here")
+
 with tab3:
     st.header("Edit Positions")
     if pm.portfolio:
