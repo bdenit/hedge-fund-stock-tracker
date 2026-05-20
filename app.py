@@ -247,7 +247,6 @@ print(f"Dividend Yield: {info.get('dividendYield')}")
 # 2. Get history of dividend payments
 # This returns a pandas Series with dates and amounts
 dividends = ticker.dividends
-latest_dividend = all_dividends.tail(1)
 print(dividends.tail()) # Shows recent payouts
 
 with tab4:
