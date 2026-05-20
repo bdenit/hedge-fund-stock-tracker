@@ -248,7 +248,7 @@ print(f"Dividend Yield: {info.get('dividendYield')}")
 # This returns a pandas Series with dates and amounts
 dividends = ticker.dividends
 print(dividends.tail()) # Shows recent payouts
-dividend_payout = {info.get('dividendRate')}
+dividend_payout = dividendYield
 
 with tab4:
     st.header("📈 Dividends & Forecast")
