@@ -257,7 +257,7 @@ with tab4:
         total_forecast = 0.0
         for pos in pm.portfolio:
             # Placeholder dividend yield (can be expanded with real data)
-            est_annual_div = pos["shares"] *latest_dividend # Example placeholder
+            est_annual_div = pos["shares"] *dividends -1 # Example placeholder
             total_forecast += est_annual_div
             forecast_data.append({
                 "Ticker": pos["ticker"],
