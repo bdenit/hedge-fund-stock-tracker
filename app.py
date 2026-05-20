@@ -180,7 +180,7 @@ with tab1:
                 "Market Value": mv,
                 "Daily %": pnl["daily_change"],
                 "Dividend Yield %": dividend_yield if dividend_yield is not None else "N/A",
-                "Unrealized Daily P&L": pnl["unrealized_pnl"],
+                "Unrealized P&L": pnl["unrealized_pnl"],
                 "Sector": sector,
                 "Industry": industry
             })
@@ -192,7 +192,7 @@ with tab1:
             st.metric("Total Portfolio Value", f"${total_mv:,.2f}")
             color = "#00ff88" if total_unreal >= 0 else "#ff4444"
             st.markdown(
-                f"<div style='background-color:#1E1E1E;padding:20px;border-radius:10px;text-align:center'><h4>Unrealized P&L</h4><h2 style='color:{color}'>${total_unreal:,.2f}</h2></div>",
+                f"<div style='background-color:#1E1E1E;padding:20px;border-radius:10px;text-align:center'><h4>Unrealized Daily P&L</h4><h2 style='color:{color}'>${total_unreal:,.2f}</h2></div>",
                 unsafe_allow_html=True)
 
         # Charts
