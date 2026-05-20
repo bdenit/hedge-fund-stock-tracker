@@ -180,7 +180,7 @@ with tab1:
                 "Market Value": mv,
                 "Daily %": pnl["daily_change"],
                 "Dividend Yield %": dividend_yield if dividend_yield is not None else "N/A",
-                "Unrealized P&L": pnl["unrealized_pnl"],
+                "Unrealized Daily P&L": pnl["unrealized_pnl"],
                 "Sector": sector,
                 "Industry": industry
             })
