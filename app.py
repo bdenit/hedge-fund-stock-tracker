@@ -17,7 +17,6 @@ except ImportError:
 st.set_page_config(page_title="Stock Tracker", layout="wide", page_icon="📈")
 
 st.title("Stock Tracker")
-st.markdown("**Professional Multi-Asset Portfolio Intelligence Platform**")
 
 PORTFOLIO_FILE = "hedge_fund_portfolio.json"
 
