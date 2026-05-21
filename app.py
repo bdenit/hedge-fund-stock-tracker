@@ -248,7 +248,6 @@ print(f"Dividend Yield: {info.get('dividendYield')}")
 # This returns a pandas Series with dates and amounts
 dividends = ticker.dividends
 print(dividends.tail()) # Shows recent payouts
-dividend_payout = dividendYield
 
 with tab4:
     st.header("📈 Dividends & Forecast")
@@ -257,7 +256,7 @@ with tab4:
         total_forecast = 0.0
         for pos in pm.portfolio:
             # Placeholder dividend yield (can be expanded with real data)
-            est_annual_div = pos["shares"] * 0.25 # Example placeholder
+            est_annual_div = pos["shares"] * 'dividendYield' # Example placeholder
             total_forecast += est_annual_div
             forecast_data.append({
                 "Ticker": pos["ticker"],
