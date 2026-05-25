@@ -261,31 +261,33 @@ print(dividends.tail()) # Shows recent payouts
 
 with tab4:
     st.header("📈 Dividends & Forecast")
-        if pm.portfolio:
-            div_data = []
-            total_12m_income = 0.0
+    if pm.portfolio:
+        div_data = []
+        total_12m_income = 0.0
 
-            for pos in pm.portfolio:
-                div_info = pm.get_dividend_info(pos["ticker"])
-                annual_div = div_info["annual_div_per_share"]
-                est_12m_income = pos["shares"] * annual_div
-                total_12m_income += est_12m_income
+        for pos in pm.portfolio:
+            div_info = pm.get_dividend_info(pos["ticker"])
+            annual_div = div_info["annual_div_per_share"]
+            est_12m_income = pos["shares"] * annual_div
+            total_12m_income += est_12m_income
 
-                div_data.append({
-                    "Ticker": pos["ticker"],
-                    "Shares": round(pos["shares"], 4),
-                    "Est Annual Dividend": round(annual_div, 4),
-                    "Yield on Cost (%)": round((annual_div / pos.get("avg_cost", 1)) * 100, 2) if pos.get("avg_cost",
-                                                                                                          0) > 0 else "N/A",
-                    "Est 12M Income": round(est_12m_income, 2)
-                })
+            div_data.append({
+                "Ticker": pos["ticker"],
+                "Shares": round(pos["shares"], 4),
+                "Est Annual Dividend": round(annual_div, 4),
+                "Yield on Cost (%)": round((annual_div / pos.get("avg_cost", 1)) * 100, 2) if pos.get("avg_cost",
+                                                                                                      0) > 0 else "N/A",
+                "Est 12M Income": round(est_12m_income, 2)
+            })
 
-            st.dataframe(pd.DataFrame(div_data), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(div_data), use_container_width=True, hide_index=True)
 
-            st.success(f"**Total Expected 12-Month Dividend Income: ${total_12m_income:,.2f}**")
+        st.success(f"**Total Expected 12-Month Dividend Income: ${total_12m_income:,.2f}**")
 
-        else:
-            st.info("No holdings yet. Add positions to see dividend forecast.")
+    else:
+        st.info("No holdings yet. Add positions to see dividend forecast.")
+
+st.sidebar.info("Data synchronized with console_tracker.py | Dividend data from yfinance")
 
 with tab5:
     st.header("🌍 Markets & Risk")
