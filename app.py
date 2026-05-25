@@ -63,18 +63,28 @@ class PortfolioManager:
         except:
             return None
 
-    def get_dividend_yield(self, ticker):
-        """Return dividend yield in %"""
+    def get_dividend_info(self, ticker):
+        """Get accurate dividend data"""
         try:
             stock = yf.Ticker(ticker)
             info = stock.info
-            # Try forward yield first, then trailing
-            yield_pct = info.get('dividendYield') or info.get('trailingAnnualDividendYield')
-            if yield_pct is not None:
-                return round(yield_pct * 100, 2)
-            return None
+            # Priority: Forward dividend > Trailing dividend
+            annual_div = info.get('dividendRate') or info.get('trailingAnnualDividendRate') or 0
+            if annual_div is None:
+                annual_div = 0
+
+            yield_pct = info.get('dividendYield')
+            if yield_pct is None:
+                yield_pct = 0
+            else:
+                yield_pct = yield_pct * 100  # convert to percentage
+
+            return {
+                "annual_div_per_share": round(annual_div, 4),
+                "yield_pct": round(yield_pct, 2)
+            }
         except:
-            return None
+            return {"annual_div_per_share": 0.0, "yield_pct": 0.0}
 
     def get_ytd_return(self, ticker):
         try:
@@ -251,23 +261,31 @@ print(dividends.tail()) # Shows recent payouts
 
 with tab4:
     st.header("📈 Dividends & Forecast")
-    if pm.portfolio:
-        forecast_data = []
-        total_forecast = 0.0
-        for pos in pm.portfolio:
-            # Placeholder dividend yield (can be expanded with real data)
-            est_annual_div = pos["shares"] * 0.5 # Example placeholder
-            total_forecast += est_annual_div
-            forecast_data.append({
-                "Ticker": pos["ticker"],
-                "Shares": round(pos["shares"], 4),
-                "Est Annual Dividend": round(est_annual_div, 2),
-                "Est 12M Income": round(est_annual_div, 2)
-            })
-        st.dataframe(pd.DataFrame(forecast_data), use_container_width=True, hide_index=True)
-        st.metric("Total Expected 12-Month Dividend Income", f"${total_forecast:,.2f}")
-    else:
-        st.info("Add holdings to see dividend forecast.")
+        if pm.portfolio:
+            div_data = []
+            total_12m_income = 0.0
+
+            for pos in pm.portfolio:
+                div_info = pm.get_dividend_info(pos["ticker"])
+                annual_div = div_info["annual_div_per_share"]
+                est_12m_income = pos["shares"] * annual_div
+                total_12m_income += est_12m_income
+
+                div_data.append({
+                    "Ticker": pos["ticker"],
+                    "Shares": round(pos["shares"], 4),
+                    "Est Annual Dividend": round(annual_div, 4),
+                    "Yield on Cost (%)": round((annual_div / pos.get("avg_cost", 1)) * 100, 2) if pos.get("avg_cost",
+                                                                                                          0) > 0 else "N/A",
+                    "Est 12M Income": round(est_12m_income, 2)
+                })
+
+            st.dataframe(pd.DataFrame(div_data), use_container_width=True, hide_index=True)
+
+            st.success(f"**Total Expected 12-Month Dividend Income: ${total_12m_income:,.2f}**")
+
+        else:
+            st.info("No holdings yet. Add positions to see dividend forecast.")
 
 with tab5:
     st.header("🌍 Markets & Risk")
