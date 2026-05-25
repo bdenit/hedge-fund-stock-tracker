@@ -3,22 +3,23 @@ import yfinance as yf
 import pandas as pd
 import json
 import os
-import numpy as np
 from datetime import datetime
-from io import BytesIO
 
-# Plotly
+# Plotly for charts
 try:
     import plotly.express as px
 
     PLOTLY_AVAILABLE = True
 except ImportError:
     PLOTLY_AVAILABLE = False
-st.set_page_config(page_title="Stock Tracker", layout="wide", page_icon="📈")
 
-st.title("Stock Tracker")
+st.set_page_config(page_title="Hedge Fund Stock Tracker", layout="wide", page_icon="📈")
+
+st.title("Hedge Fund Stock Tracker")
+st.markdown("**Professional Multi-Asset Portfolio Intelligence Platform**")
 
 PORTFOLIO_FILE = "hedge_fund_portfolio.json"
+
 
 class PortfolioManager:
     def __init__(self):
@@ -63,43 +64,10 @@ class PortfolioManager:
         except:
             return None
 
-    def get_dividend_info(self, ticker):
-        """Get accurate dividend data"""
-        try:
-            stock = yf.Ticker(ticker)
-            info = stock.info
-            # Priority: Forward dividend > Trailing dividend
-            annual_div = info.get('dividendRate') or info.get('trailingAnnualDividendRate') or 0
-            if annual_div is None:
-                annual_div = 0
-
-            yield_pct = info.get('dividendYield')
-            if yield_pct is None:
-                yield_pct = 0
-            else:
-                yield_pct = yield_pct * 100  # convert to percentage
-
-            return {
-                "annual_div_per_share": round(annual_div, 4),
-                "yield_pct": round(yield_pct, 2)
-            }
-        except:
-            return {"annual_div_per_share": 0.0, "yield_pct": 0.0}
-
-    def get_ytd_return(self, ticker):
-        try:
-            stock = yf.Ticker(ticker)
-            hist = stock.history(period="ytd")
-            if len(hist) > 1:
-                return round(((hist['Close'].iloc[-1] / hist['Close'].iloc[0]) - 1) * 100, 2)
-            return None
-        except:
-            return None
-
     def calculate_pnl(self, position):
         price = self.get_current_price(position["ticker"])
         if price is None:
-            return {"current_price": "N/A", "market_value": 0, "unrealized_pnl": 0, "daily_change": None}
+            return {"current_price": "N/A", "market_value": "N/A", "unrealized_pnl": "N/A", "daily_change": None}
 
         market_value = position["shares"] * price
         cost_basis = position["shares"] * position.get("avg_cost", 0)
@@ -113,13 +81,26 @@ class PortfolioManager:
             "daily_change": daily_change
         }
 
-    def get_total_mv(self):
-        total = 0.0
-        for pos in self.portfolio:
-            price = self.get_current_price(pos["ticker"])
-            if price:
-                total += pos["shares"] * price
-        return total
+    def get_dividend_info(self, ticker):
+        """Accurate dividend data from yfinance"""
+        try:
+            stock = yf.Ticker(ticker)
+            info = stock.info
+
+            # Best available dividend data
+            annual_div = info.get('dividendRate') or info.get('trailingAnnualDividendRate') or 0.0
+            yield_pct = info.get('dividendYield')
+            if yield_pct is not None:
+                yield_pct = yield_pct * 100
+            else:
+                yield_pct = 0.0
+
+            return {
+                "annual_div_per_share": round(float(annual_div), 4),
+                "yield_pct": round(float(yield_pct), 2)
+            }
+        except:
+            return {"annual_div_per_share": 0.0, "yield_pct": 0.0}
 
     def get_sector(self, ticker):
         try:
@@ -127,29 +108,15 @@ class PortfolioManager:
         except:
             return 'Unknown'
 
-    def get_industry(self, ticker):
-        try:
-            return yf.Ticker(ticker).info.get('industry', 'Unknown')
-        except:
-            return 'Unknown'
-
-    def get_country(self, ticker):
-        try:
-            country = yf.Ticker(ticker).info.get('country', '')
-            return 'Australia' if country == 'Australia' else 'International'
-        except:
-            return 'International'
-
 
 # ====================== Streamlit UI ======================
 pm = PortfolioManager()
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
+tab1, tab2, tab3, tab4 = st.tabs([
     "📊 Main Portfolio",
     "📤 Import CSV",
     "✏️ Edit Positions",
-    "📈 Dividends & Forecast",
-    "🌍 Markets & Risk"
+    "📈 Dividends & Forecast"
 ])
 
 with tab1:
@@ -159,27 +126,18 @@ with tab1:
 
     if pm.portfolio:
         data = []
-        total_mv = pm.get_total_mv()
+        total_mv = 0.0
         total_unreal = 0.0
-
         sector_data = {}
-        industry_data = {}
-        geo_data = {}
 
         for pos in pm.portfolio:
             pnl = pm.calculate_pnl(pos)
-            mv = pnl["market_value"]
-            total_unreal += pnl["unrealized_pnl"]
-
-            dividend_yield = pm.get_dividend_yield(pos["ticker"])
+            mv = pnl["market_value"] if isinstance(pnl["market_value"], (int, float)) else 0
+            total_mv += mv
+            total_unreal += pnl["unrealized_pnl"] if isinstance(pnl["unrealized_pnl"], (int, float)) else 0
 
             sector = pm.get_sector(pos["ticker"])
-            industry = pm.get_industry(pos["ticker"])
-            country = pm.get_country(pos["ticker"])
-
             sector_data[sector] = sector_data.get(sector, 0) + mv
-            industry_data[industry] = industry_data.get(industry, 0) + mv
-            geo_data[country] = geo_data.get(country, 0) + mv
 
             data.append({
                 "Ticker": pos["ticker"],
@@ -187,77 +145,31 @@ with tab1:
                 "Shares": round(pos["shares"], 4),
                 "Avg Cost": round(pos.get("avg_cost", 0), 4),
                 "Current Price": pnl["current_price"],
-                "Market Value": mv,
+                "Market Value": pnl["market_value"],
                 "Daily %": pnl["daily_change"],
-                "Dividend Yield %": dividend_yield if dividend_yield is not None else "N/A",
-                "Unrealized P&L": pnl["unrealized_pnl"],
-                "Sector": sector,
-                "Industry": industry
+                "Unrealized P&L": pnl["unrealized_pnl"]
             })
 
         st.dataframe(pd.DataFrame(data), use_container_width=True, hide_index=True)
 
-        col1, col2 = st.columns([2, 3])
+        col1, col2, col3 = st.columns([3, 2, 2])
         with col1:
             st.metric("Total Portfolio Value", f"${total_mv:,.2f}")
+        with col2:
             color = "#00ff88" if total_unreal >= 0 else "#ff4444"
             st.markdown(
-                f"<div style='background-color:#1E1E1E;padding:20px;border-radius:10px;text-align:center'><h4>Unrealized Daily P&L</h4><h2 style='color:{color}'>${total_unreal:,.2f}</h2></div>",
+                f"<div style='background-color:#1E1E1E;padding:20px;border-radius:10px;text-align:center'><h4>Unrealized P&L</h4><h2 style='color:{color}'>${total_unreal:,.2f}</h2></div>",
                 unsafe_allow_html=True)
 
-        # Charts
-        if PLOTLY_AVAILABLE:
-            col3, col4, col5 = st.columns(3)
-            with col3:
+        with col3:
+            if PLOTLY_AVAILABLE and sector_data:
                 fig = px.pie(names=list(sector_data.keys()), values=list(sector_data.values()),
                              title="Sector Allocation")
+                fig.update_traces(textinfo='percent+label')
                 st.plotly_chart(fig, use_container_width=True)
-            with col4:
-                fig2 = px.pie(names=list(industry_data.keys()), values=list(industry_data.values()),
-                              title="Industry Breakdown")
-                st.plotly_chart(fig2, use_container_width=True)
-            with col5:
-                fig3 = px.pie(names=list(geo_data.keys()), values=list(geo_data.values()),
-                              title="Geographic Allocation")
-                st.plotly_chart(fig3, use_container_width=True)
 
-with tab2:
-    st.header("Import from SelfWealth")
-    uploaded = st.file_uploader("Upload SelfWealth CSV", type="csv")
-    if uploaded and st.button("Import CSV"):
-        st.info("SelfWealth importer can be expanded here")
-
-with tab3:
-    st.header("Edit Positions")
-    if pm.portfolio:
-        edit_df = pd.DataFrame([{
-            "ticker": p["ticker"],
-            "name": p.get("name", ""),
-            "shares": p["shares"],
-            "avg_cost": p.get("avg_cost", 0)
-        } for p in pm.portfolio])
-
-        edited = st.data_editor(edit_df, use_container_width=True, hide_index=True)
-        if st.button("💾 Save Changes"):
-            pm.portfolio = edited.to_dict('records')
-            pm.save_all()
-            st.success("Positions saved!")
-            st.rerun()
-
-# Initialize the ticker
-ticker = yf.Ticker("AAPL")
-
-# 1. Get current annual dividend rate and yield
-info = ticker.info
-# 'dividendRate' is the annual payout amount
-# 'dividendYield' is the percentage yield (e.g., 0.02 for 2%)
-print(f"Annual Dividend Rate: {info.get('dividendRate')}")
-print(f"Dividend Yield: {info.get('dividendYield')}")
-
-# 2. Get history of dividend payments
-# This returns a pandas Series with dates and amounts
-dividends = ticker.dividends
-print(dividends.tail()) # Shows recent payouts
+    else:
+        st.info("Portfolio is empty.")
 
 with tab4:
     st.header("📈 Dividends & Forecast")
@@ -273,7 +185,7 @@ with tab4:
 
             div_data.append({
                 "Ticker": pos["ticker"],
-                "Shares": round(pos["shares"], 4),
+                "Shares": round(pos["shares"], 2),
                 "Est Annual Dividend": round(annual_div, 4),
                 "Yield on Cost (%)": round((annual_div / pos.get("avg_cost", 1)) * 100, 2) if pos.get("avg_cost",
                                                                                                       0) > 0 else "N/A",
@@ -285,42 +197,6 @@ with tab4:
         st.success(f"**Total Expected 12-Month Dividend Income: ${total_12m_income:,.2f}**")
 
     else:
-        st.info("No holdings yet. Add positions to see dividend forecast.")
+        st.info("No holdings yet.")
 
-st.sidebar.info("Data synchronized with console_tracker.py | Dividend data from yfinance")
-
-with tab5:
-    st.header("🌍 Markets & Risk")
-
-    # Precious Metals
-    st.subheader("Precious Metals (AUD)")
-    metals = {"Gold": "GC=F", "Silver": "SI=F", "Copper": "HG=F", "Platinum": "PL=F"}
-    aud_rate = pm.get_current_price("AUDUSD=X") or 1.0
-    metal_data = []
-    for name, symbol in metals.items():
-        usd = pm.get_current_price(symbol)
-        aud = usd / aud_rate if usd else None
-        metal_data.append({"Metal": name, "USD": usd, "AUD": round(aud, 2) if aud else "N/A"})
-    st.dataframe(pd.DataFrame(metal_data), use_container_width=True, hide_index=True)
-
-    # World Indices
-    st.subheader("Major World Indices")
-    indices = {
-        "S&P 500": "^GSPC", "Nasdaq": "^IXIC", "ASX 200": "^AXJO",
-        "FTSE 100": "^FTSE", "DAX": "^GDAXI", "Nikkei 225": "^N225",
-        "Shanghai": "^SSEC", "Hong Kong": "^HSI", "Toronto": "^GSPTSE"
-    }
-    index_data = []
-    for name, symbol in indices.items():
-        price = pm.get_current_price(symbol)
-        change = pm.get_daily_change(symbol)
-        index_data.append({"Index": name, "Price": price, "Daily %": change})
-    st.dataframe(pd.DataFrame(index_data), use_container_width=True, hide_index=True)
-
-    # Risk Section
-    st.subheader("Risk Metrics")
-    if pm.portfolio:
-        var_95 = 0.0  # Placeholder - can be expanded
-        st.metric("1-Day VaR (95%)", f"-${var_95:,.2f}")
-
-st.sidebar.info("Complete Professional Dashboard - Ready for Peer Review")
+st.sidebar.info("Dividend data from yfinance (forward + trailing)")
