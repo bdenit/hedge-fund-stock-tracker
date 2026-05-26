@@ -174,8 +174,6 @@ with tab1:
             mv = pnl["market_value"]
             total_unreal += pnl["unrealized_pnl"]
 
-            dividend_yield = pm.get_dividend_yield(pos["ticker"])
-
             sector = pm.get_sector(pos["ticker"])
             industry = pm.get_industry(pos["ticker"])
             country = pm.get_country(pos["ticker"])
@@ -192,7 +190,6 @@ with tab1:
                 "Current Price": pnl["current_price"],
                 "Market Value": mv,
                 "Daily %": pnl["daily_change"],
-                "Dividend Yield %": dividend_yield if dividend_yield is not None else "N/A",
                 "Unrealized P&L": pnl["unrealized_pnl"],
                 "Sector": sector,
                 "Industry": industry
